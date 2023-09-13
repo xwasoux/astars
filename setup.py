@@ -1,4 +1,24 @@
 from setuptools import setup
+
+from os import path
+from configparser import ConfigParser
+import subprocess
+
+GITMODULES_PATH = ".gitmodules"
+config = ConfigParser()
+config.read(GITMODULES_PATH)
+
+for section in config.sections():
+    if section.startswith("submodule "):
+        submodule_info = dict(config.items(section=section))
+        submodule_path = submodule_info["path"]
+        submodule_url  = submodule_info["url"]
+
+        subprocess.run(["git", "clone", submodule_url, submodule_path])
+
+submodule_setup = subprocess.Popen(["git", "submodule", "update", "--init", "--recursive"], shell=True)
+submodule_setup.wait()
+
 import astars
 
 NAME = 'astars'
@@ -35,6 +55,10 @@ CLASSIFIERS = [
     'Topic :: Scientific/Engineering :: Artificial Intelligence',
 ]
 
+PACKAGE_DATA = { 
+    "tree-sitter": [path.join("astars", "parser" "grammar", "tree-sitter", "*")] 
+}
+
 setup(
     name=NAME,
     description=DESCRIPTION,
@@ -51,5 +75,6 @@ setup(
     maintainer_email=AUTHOR_EMAIL,
 
     packages=PACKAGES,
+    package_data=PACKAGE_DATA, 
     classifiers=CLASSIFIERS
     )
