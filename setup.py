@@ -1,5 +1,4 @@
 from setuptools import setup
-import astars
 
 NAME = 'astars'
 DESCRIPTION = "Astars: AST analysis and manipulation tools for diverse languages."
@@ -35,6 +34,12 @@ CLASSIFIERS = [
     'Topic :: Scientific/Engineering :: Artificial Intelligence',
 ]
 
+USE_SCM_VERSION = True
+SETUP_REQUIRES = [
+    "setuptools>=42",
+    "setuptools_scm>=3.4",
+]
+
 setup(
     name=NAME,
     description=DESCRIPTION,
@@ -51,5 +56,7 @@ setup(
     maintainer_email=AUTHOR_EMAIL,
 
     packages=PACKAGES,
-    classifiers=CLASSIFIERS
+    classifiers=CLASSIFIERS,
+    use_scm_version=USE_SCM_VERSION,
+    setup_requires=SETUP_REQUIRES,
     )

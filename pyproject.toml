@@ -1,0 +1,19 @@
+[build-system]
+requires = [
+  "setuptools>=61",
+  "wheel",
+  "setuptools_scm[toml]>=7"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "astars"
+dynamic = ["version"]
+dependencies = [
+  "anytree",
+]
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+write_to = "astars/_version.py"
