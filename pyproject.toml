@@ -12,6 +12,7 @@ dynamic = ["version"]
 dependencies = [
   "anytree",
 ]
+requires-python = ">=3.9"
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
