@@ -7,4 +7,6 @@ anytree
 graphviz
 pydot
 tree_sitter
+tree-sitter-python
+tree-sitter-java
 gitpython
