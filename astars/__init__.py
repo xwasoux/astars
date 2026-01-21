@@ -11,5 +11,3 @@ __all__ = [ "ANode",
             "ATraverser", 
             "AReverseTraverser",
             "AParseTree"]
-
-__version__ = "0.0.2"
