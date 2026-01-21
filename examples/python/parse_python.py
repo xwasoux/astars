@@ -5,9 +5,7 @@ def main():
     with open(os.path.join(os.path.dirname(__file__), "input", "python_sample.py")) as f:
         code = f.read()
 
-    # py_parser = AParser(lang="python")
-    ## If you want to build the parser to your local directory, use the following code
-    py_parser = AParser(lang="python", build_to=os.path.join(os.path.dirname(__file__)))
+    py_parser = AParser(lang="python")
     code = py_parser.preprocess(text=code)
     tree = py_parser.parse(text=code)
     print(tree)
