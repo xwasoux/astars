@@ -1,12 +1,10 @@
 import os
 import shutil
 from typing import Any, Dict, List, Optional, Tuple, Union
-from git import Repo
 from tree_sitter import Language, Parser, Node
 
-from ..nodes.node import ANode
-from ._nodeAdd import _addNode
-from ..tree import AParseTree
+from ..cst.node import CSTNode
+from ..cst import CST
 from ._utils import remove_comments_and_docstrings
 
 class AParser:
@@ -20,27 +18,14 @@ class AParser:
         elif self.lang == "java":
             import tree_sitter_java as tsjava
             self.ANY_LANGUAGE = Language(tsjava.language())
-        
+
     def preprocess(self, text: str) -> str:
         return remove_comments_and_docstrings(text, self.lang)
 
     def parse(self, text: str) -> None:
         parser = Parser(self.ANY_LANGUAGE)
 
-        tree = parser.parse(bytes(text, "utf8"))
-        cst = _ts2Anytree(source=tree.root_node, parent=None)
+        tstree = parser.parse(bytes(text, "utf8"))
+        cst = CST(tstree=tstree.root_node, code=text, lang=self.lang)
 
-        parsetree = AParseTree(tree=cst, code=text, lang=self.lang)
-
-        return parsetree
-
-def _ts2Anytree(source, parent:ANode=None) -> None:
-    if parent == None:
-        target = _addNode(source=source)
-    else:
-        target = _addNode(source=source, parent=parent)
-
-    for child in source.children:
-        _ts2Anytree(child, target)
-
-    return target
+        return cst

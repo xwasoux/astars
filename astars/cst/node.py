@@ -1,6 +1,6 @@
 import anytree
 
-class ANode(anytree.NodeMixin):
+class CSTNode(anytree.NodeMixin):
     allAttr = (
         "child_by_field_id", "child_by_field_name", "child_count", 
         "children", "children_by_field_id", "children_by_field_name", 
