@@ -24,15 +24,8 @@ services:
 
 
     volumes:
-      - .:/app
+      - ..:/app
     
-
-    # Uncomment the next four lines if you will use a ptrace-based debugger like C++, Go, and Rust.
-    # cap_add:
-    #   - SYS_PTRACE
-    # security_opt:
-    #   - seccomp:unconfined
-
     tty: true
     stdin_open: true
     working_dir: /app
