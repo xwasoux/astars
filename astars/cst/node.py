@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+import uuid
 import anytree
 
 class CSTNode(anytree.NodeMixin):
@@ -17,6 +19,7 @@ class CSTNode(anytree.NodeMixin):
         super().__init__()
         self.name = name
         self.parent = parent
+        self.uid = str(uuid.uuid4())
 
         for key, val in dictAttrs.items():
             setattr(self, key, val)
@@ -25,3 +28,6 @@ class CSTNode(anytree.NodeMixin):
 
     def __repr__(self):
         return f"{self.__class__.__name__}{self.name, self.type}"
+
+    def get_id(self) -> str:
+        return self.uid
