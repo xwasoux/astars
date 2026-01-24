@@ -6,10 +6,9 @@ def main():
         code = f.read()
 
     java_parser = AParser(lang="java")
-    code = java_parser.preprocess(text=code)
-    tree = java_parser.parse(text=code)
-    print(tree)
-    print(tree.originalCode)
+    # code = java_parser.preprocess(text=code)
+    cst = java_parser.parse(text=code)
+    print(cst)
 
     return None
 
