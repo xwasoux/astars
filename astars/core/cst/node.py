@@ -89,19 +89,21 @@ class CSTNode(anytree.NodeMixin):
     def __init__(self,
                  *,
                  name:str,
-                 parent:"CSTNode"=None,
+                 parent:'CSTNode | None',
                  grammar_id:int,
                  grammar_name:str,
-                 byte_range:int,
+                 byte_range:tuple[int, int],
                  start_byte:int,
                  end_byte:int,
                  type:str,
+                 unstable_id:int,
+                 stable_id:str,
                  ):
 
         super().__init__()
 
         # Attributes originating from anytree
-        self.name = name
+        self.name = name                    #A name or any other object this node can reference to as identifier.
         self.parent = parent
 
         # Attributes originating from py-tree-sitter Node
@@ -112,10 +114,11 @@ class CSTNode(anytree.NodeMixin):
         self.end_byte = end_byte
         self.type = type
 
-        self.uid = str(uuid.uuid4())
+        self.stable_id = stable_id          #Retains identity even when regenerated. For external publication, diff/visualization/caching purposes.
+        self.unstable_id = unstable_id      #Unique at build time, high-speed, for internal use
 
     def __repr__(self):
         return f"{self.__class__.__name__}{self.name, self.type}"
 
     def get_id(self) -> str:
-        return self.uid
+        return self.stable_id
