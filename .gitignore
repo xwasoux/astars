@@ -165,6 +165,7 @@ test/
 parsers/
 
 # File extentions
+astars/_version.py
 *.csv
 *.tsv
 *.json
