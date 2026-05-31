@@ -9,7 +9,7 @@ on, rather than a full analysis product by itself.
 
 ## Project Status
 
-Astars is being reorganized around a v0 public API.
+Astars 0.1.0 provides the first v0 public API.
 
 The current v0 scope is intentionally small:
 
@@ -37,8 +37,7 @@ For the released package:
 pip install astars
 ```
 
-The v0 API shown below may be ahead of the latest PyPI release. To try the
-development version from this repository:
+To try the development version from this repository:
 
 ```bash
 git clone https://github.com/xwasoux/astars.git

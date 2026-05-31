@@ -352,7 +352,7 @@ v0 supported Python version:
 
 release 前 checklist:
 
-- [ ] `CHANGELOG` または release note を用意する
+- [ ] `CHANGELOG.md` または release note を用意する
 - [ ] README の install / usage が正しい
 - [ ] package metadata が正しい
 - [ ] version tag が正しい
