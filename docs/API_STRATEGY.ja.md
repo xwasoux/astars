@@ -4,7 +4,12 @@
 
 English version: [API_STRATEGY.md](API_STRATEGY.md)
 
-関連戦略: [STRATEGY.ja.md](STRATEGY.ja.md)
+関連文書:
+
+- [STRATEGY.ja.md](STRATEGY.ja.md)
+- [CONCEPTS.ja.md](CONCEPTS.ja.md)
+- [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
+- [MIGRATION.ja.md](MIGRATION.ja.md)
 
 この文書は、軽量な program-structure engine としての Astars の API 戦略を定義する。目的は、downstream の `astars-*` package が安心して依存できる表面を作りつつ、parser 固有の詳細や application-specific な判断を public API から切り離すことである。
 
@@ -111,7 +116,7 @@ for node in unit.walk():
 
 ```python
 functions = unit.find(kind="FunctionDef")
-node = unit.node_at(offset=42)
+node = unit.node_at(byte_offset=42)
 ```
 
 query API は、一般的な分析 workflow をカバーしつつ、domain-specific になりすぎないようにする。
@@ -128,23 +133,170 @@ node から source への mapping は、first-class public workflow として扱
 ### Source-Aware Operation を組み立てる
 
 ```python
-edit = unit.remove(node)
+edit = unit.edit.delete(node)
 new_source = edit.apply()
 ```
 
 core は generic edit primitive を提供してよい。ただし、どの node を編集対象にするかという domain-specific な判断は Astars core の外に置く。
 
+この workflow は重要だが、最初に固定する public API には含めない。まず parse、inspect、query、source mapping を安定させ、その後に edit primitive を追加する。
+
+## Initial Public API
+
+この節は、`MIGRATION.ja.md` の Phase 1 で最初に実装・固定する public API を定義する。
+
+v0 の public API は、source code を parse し、AST-like node を inspect/query し、node を source span に戻すところまでを対象にする。source-aware edit primitive は次段階の API として扱う。
+
+### v0 で固定する API
+
+v0 では、次の名前を `astars` 直下から import できるようにする。
+
+- `astars.parse_file`
+- `astars.parse_str`
+- `astars.parse_bytes`
+- `astars.SourceUnit`
+- `astars.SourceSpan`
+- `astars.Diagnostic`
+- `astars.AstarsError`
+- `astars.UnsupportedLanguageError`
+- `astars.ParserUnavailableError`
+- `astars.__version__`
+
+AST node の concrete class 名は v0 では強く固定しない。ただし、public node interface は固定する。
+
+### Parse Functions
+
+最初の parse API は、次の形を基本とする。
+
+```python
+unit = astars.parse_file(path, *, lang, encoding="utf-8")
+unit = astars.parse_str(source, *, lang, path=None)
+unit = astars.parse_bytes(source_bytes, *, lang, path=None)
+```
+
+方針:
+
+- `lang` は keyword-only かつ必須にする
+- file extension からの language 推定は v0 では必須機能にしない
+- 汎用的な `options` bag は v0 では公開しない
+- `path` は source location を保持するための任意 metadata として扱う
+- 3 つの parse function は同じ `SourceUnit` を返す
+
+`options` は便利だが、意味が曖昧なまま public API に入れると将来の互換性を壊しやすい。必要な option が明確になった時点で、名前付き引数または extension API として追加する。
+
+### SourceUnit Interface
+
+`SourceUnit` は、1つの source input を parse した結果全体を表す public handle として採用する。
+
+v0 で固定する property / method:
+
+- `unit.lang`
+- `unit.path`
+- `unit.source`
+- `unit.root`
+- `unit.diagnostics`
+- `unit.walk(kind=None)`
+- `unit.find(kind=None)`
+- `unit.node_at(byte_offset)`
+- `unit.span_of(node)`
+- `unit.source_of(node)`
+
+方針:
+
+- `unit.root` は AST-like root node を返す
+- `unit.walk()` は `unit.root` からの depth-first traversal を返す
+- `unit.find(kind="FunctionDef")` は kind による最小 query として始める
+- `unit.node_at(byte_offset)` は byte offset から最も対応する node を返す
+- `unit.span_of(node)` は `SourceSpan` または `None` を返す
+- `unit.source_of(node)` は node に対応する source text を返す
+
+query 条件は、最初は `kind` に絞る。`role`、`name`、predicate、selector DSL は、実際の downstream use case が見えてから追加する。
+
+### Public Node Interface
+
+v0 の node object は、少なくとも次の属性を持つ。
+
+- `node.kind`
+- `node.id`
+- `node.children`
+- `node.role`
+- `node.value`
+
+必須:
+
+- `kind`
+- `id`
+- `children`
+
+任意:
+
+- `role`
+- `value`
+
+`node.id` は、1つの `SourceUnit` の中で node を識別するための ID とする。v0 では、edit をまたいだ永続 ID や Astars version をまたいだ stable ID は保証しない。
+
+### SourceSpan Interface
+
+`SourceSpan` は、source code 上の範囲を表す public object として採用する。
+
+v0 で固定する属性:
+
+- `span.start_byte`
+- `span.end_byte`
+- `span.start_point`
+- `span.end_point`
+
+方針:
+
+- byte offset を canonical representation とする
+- `start_point` / `end_point` は 0-based の `(line, column)` とする
+- line は 0-based line number とする
+- column は byte column を基本とし、Unicode column 表示は別 helper の候補とする
+
+人間向け表示や review comment では 1-based line number が必要になることがある。その変換は helper として提供してよいが、engine 内部と public span object の基準は 0-based に揃える。
+
+### Diagnostics Interface
+
+`Diagnostic` は、parse や normalization の問題を表す public object として扱う。
+
+v0 で固定する属性:
+
+- `diagnostic.severity`
+- `diagnostic.message`
+- `diagnostic.span`
+
+方針:
+
+- syntax error のように parser が recovery できる問題は、可能な限り `unit.diagnostics` に載せる
+- unsupported language や parser dependency missing は exception として扱う
+- `span` が特定できない diagnostic では `span=None` を許容する
+
+### v0 では固定しない API
+
+次の API は重要だが、v0 の固定対象から外す。
+
+- CST の stable public API
+- `RawSyntaxNode` の public API
+- parser adapter contract
+- language extension API
+- edit primitive
+- selector DSL
+- semantic analysis API
+- legacy `AParser` / `APruner` / `ATraverser`
+
+これらは extension-level または次段階の API として設計する。
+
 ## Proposed Public Surface
 
-この節は提案である。名前は API が安定するまで draft-level とする。
+この節は、v0 の後に拡張する候補を含む提案である。`Initial Public API` と矛盾する場合は、`Initial Public API` を優先する。
 
 ### Top-Level Functions
 
 Astars は、小さな top-level parse API を提供する。
 
-- `astars.parse_file(path, *, lang, encoding=None, options=None)`
-- `astars.parse_str(source, *, lang, encoding="utf-8", options=None)`
-- `astars.parse_bytes(source_bytes, *, lang, options=None)`
+- `astars.parse_file(path, *, lang, encoding="utf-8")`
+- `astars.parse_str(source, *, lang, path=None)`
+- `astars.parse_bytes(source_bytes, *, lang, path=None)`
 
 これらの関数は、同じ種類の result object を返す。
 
@@ -152,11 +304,12 @@ Astars は、小さな top-level parse API を提供する。
 
 parse result は、高レベルな source unit object であるべきである。
 
-現在の実装では `ParseResult` と呼ぶかもしれないが、長期的な概念としては `SourceUnit` に近い。つまり、1 つの source input と、その構造、mapping、diagnostics をまとめた単位である。
+parse result は `SourceUnit` と呼ぶ。これは、1 つの source input と、その構造、mapping、diagnostics をまとめた単位である。
 
 必要な public capability:
 
 - `unit.lang`
+- `unit.path`
 - `unit.source`
 - `unit.root`
 - `unit.diagnostics`
@@ -188,14 +341,10 @@ span は少なくとも次を持つ。
 
 - `start_byte`
 - `end_byte`
-
-必要に応じて次を持ってよい。
-
 - `start_point`
 - `end_point`
-- `encoding`
 
-byte offset を canonical representation とする。line/column helper は提供してよいが、0-based か 1-based かは明示的に文書化する。
+byte offset を canonical representation とする。`start_point` / `end_point` は 0-based の `(line, column)` とし、column は byte column を基本とする。
 
 ### Diagnostics
 
@@ -229,7 +378,7 @@ downstream package が依存してよいもの:
 - AST node interface
 - source span interface
 - public query/traversal helpers
-- documented generic edit primitives
+- edit API 導入後に文書化された generic edit primitives
 
 ### Extension-Level
 
@@ -336,7 +485,7 @@ def collect_metrics(unit: astars.SourceUnit) -> dict:
     }
 ```
 
-result object の最終名が `SourceUnit` でない場合、この例は最終的な public name に合わせて更新する。
+downstream package は、可能であれば source path や raw source ではなく `SourceUnit` を受け取る形にする。
 
 ## Non-Goals
 
@@ -351,14 +500,13 @@ API は次のものを公開しない。
 
 ## Open Questions
 
-- primary result object の名前は `ParseResult`, `SourceUnit`, `Program`, あるいは別名のどれにするか
 - `CST` は stable public API に含めるべきか
 - `RawSyntaxNode` は public, extension-level, internal のどれに置くべきか
 - traversal は result object の method、standalone function、あるいは両方として公開するべきか
 - edit primitive は text を直接返すべきか、edit plan を返すべきか、新しい parsed source unit を返すべきか
 - language extension API は `1.0` 前にどこまで stable にするべきか
-- public API の line/column position は 0-based と 1-based のどちらにするべきか
 - `stable_id` の保証が限定的な場合、名前を変えるべきか
+- Unicode code point / grapheme cluster ベースの column 表示を public helper として提供するべきか
 
 ## 成功条件
 

@@ -421,7 +421,7 @@ Astars core は次のものではない。
 
 ## Open Questions
 
-- primary parse API は `ParseResult`, `AST`, あるいは higher-level engine object のどれを返すべきか
+- `SourceUnit` の public method set をどこまで v0 で固定するべきか
 - `CST` は public API に含めるべきか、それとも主に AST plus source mapping を使わせるべきか
 - `AParser`, `APruner`, `ATraverser` のような legacy API は削除、deprecated、thin wrapper として再導入のどれにすべきか
 - 現在の `usecase/` package は、`operations/` や `primitives/` のような engine-oriented な名前に変えるべきか
