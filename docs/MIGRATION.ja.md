@@ -272,11 +272,11 @@ engine として利用できる package にする。
 - versioning
 - minimal install test
 
-判断すること:
+v0 での判断:
 
-- `tree-sitter` / `tree-sitter-python` を必須 dependency にするか optional extra にするか
+- `tree-sitter` / `tree-sitter-python` は required dependency とする
 - `anytree` を public implementation detail として露出しないか
-- `astars[python]` のような extra を用意するか
+- `astars[python]` のような extra は、second language 以降で再検討する
 - PyPI package と GitHub repository の naming をどう扱うか
 
 この phase の完了条件:
@@ -439,7 +439,6 @@ new_source = plan.apply()
 - `astars/api.py` を単一 file にするか、`astars/api/` package にするか
 - CST を stable public API とするか
 - `RawSyntaxNode` を extension-level API として文書化するか
-- `tree-sitter-python` を必須依存にするか optional extra にするか
 - `AParser` を残す場合の deprecation policy
 - `APruner` を downstream package 化するか、example に落とすか
 - `operations/edit` と lower-level text editing backend の責務をどう分けるか
@@ -450,12 +449,12 @@ new_source = plan.apply()
 短期的には、次の順序で進める。
 
 - [x] `astars` の public API として最低限公開する名前を決める
-- [ ] `SourceUnit` object を定義する
-- [ ] `SourceText` / `SourceSpan` を source mapping の基準として整理する
-- [ ] tree-sitter parse result を `RawSyntaxNode` に変換する path を安定させる
-- [ ] AST node から source span を取得する test を追加する
-- [ ] README の最初の example を新 API に置き換える
-- [ ] legacy API の扱いを決める
+- [x] `SourceUnit` object を定義する
+- [x] `SourceSpan` を source mapping の public object として整理する
+- [x] tree-sitter parse result を `RawSyntaxNode` に変換する path を安定させる
+- [x] AST node から source span を取得する test を追加する
+- [x] README の最初の example を新 API に置き換える
+- [x] legacy API の扱いを決める
 - [ ] pruning を engine core に残すか downstream に出すか判断する
 - [ ] clean environment install と parse smoke test を通す
 

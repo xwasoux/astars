@@ -49,3 +49,7 @@ class ASTNode(anytree.NodeMixin):
 
     def get_id(self) -> str:
         return self.stable_id
+
+    @property
+    def id(self) -> str:
+        return self.stable_id

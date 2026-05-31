@@ -1,6 +1,6 @@
 # Astars v0 実装計画
 
-ステータス: draft
+ステータス: v0 public API vertical slice 実装中
 
 関連文書:
 
@@ -54,6 +54,7 @@ v0 で実装するもの:
 - `unit.source_of(node)`
 - Python source の parse path
 - AST node から source span への mapping
+- syntax recovery diagnostics の最小実装
 - minimum tests
 - README/example の最小更新
 
@@ -443,6 +444,8 @@ v0 は、次を満たしたら一旦完成とみなす。
 - `unit.node_at(byte_offset)` が node を返す
 - unsupported language で文書化された error が出る
 - README の最初の example が新 API になっている
+- examples が新 API になっている
+- syntax recovery が可能な source では `unit.diagnostics` に最小 diagnostic が入る
 - v0 public workflow の tests が通る
 
 ## Non-Success Signals
@@ -456,17 +459,17 @@ v0 は、次を満たしたら一旦完成とみなす。
 - edit primitive を急いで入れて source mapping が不安定になっている
 - README が legacy `AParser` API を主役にし続けている
 
-## Open Decisions For v0
+## Resolved Decisions For v0
 
-実装前または実装中に決めること:
+この実装段階で、v0 について次の方針を採用した。
 
-- `astars/api.py` を v0 で維持するか、早めに `astars/api/` package に分けるか
-- `tree-sitter-python` を必須 dependency にするか optional extra にするか
-- `SourceText` を public API に含めるか、`SourceUnit.source` の型としてだけ見せるか
-- `unit.walk(kind=None)` の戻り値を list にするか iterator にするか
-- `unit.find(kind=None)` の戻り値を list にするか query result object にするか
-- syntax error をどこまで diagnostics として保持するか
-- legacy `AParser` を v0 の範囲で thin wrapper として戻すか
+- `astars/api.py` を v0 の public API 入口として維持する
+- `tree-sitter-python` は v0 では required dependency とする
+- `SourceText` は v0 public API に含めず、`SourceUnit.source` を公開する
+- `unit.walk(kind=None)` は iterator を返す
+- `unit.find(kind=None)` は list を返す
+- syntax recovery diagnostics は、tree-sitter の `ERROR` / `MISSING` node を `Diagnostic` に写す最小実装とする
+- legacy `AParser` / `APruner` / `ATraverser` の thin wrapper は v0 では戻さない
 
 ## After v0
 
