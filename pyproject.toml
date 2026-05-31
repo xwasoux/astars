@@ -11,6 +11,8 @@ name = "astars"
 dynamic = ["version"]
 dependencies = [
   "anytree",
+  "tree-sitter",
+  "tree-sitter-python",
 ]
 requires-python = ">=3.9"
 
