@@ -83,6 +83,33 @@ class PublicApiTests(unittest.TestCase):
         with self.assertRaises(astars.UnsupportedLanguageError):
             astars.parse_str(SOURCE, lang="ruby")
 
+    def test_syntax_error_diagnostics(self):
+        unit = astars.parse_str("if True\n    pass\n", lang="python")
+
+        self.assertEqual(
+            unit.diagnostics,
+            (
+                astars.Diagnostic(
+                    severity="error",
+                    message="syntax error",
+                    span=astars.SourceSpan(0, 16, (0, 0), (1, 8)),
+                ),
+            ),
+        )
+
+    def test_missing_syntax_node_diagnostics(self):
+        unit = astars.parse_str("def hello(:\n    return 1\n", lang="python")
+
+        self.assertEqual(len(unit.diagnostics), 1)
+        diagnostic = unit.diagnostics[0]
+
+        self.assertEqual(diagnostic.severity, "error")
+        self.assertEqual(diagnostic.message, "missing syntax node: )")
+        self.assertEqual(
+            diagnostic.span,
+            astars.SourceSpan(10, 10, (0, 10), (0, 10)),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

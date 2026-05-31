@@ -122,7 +122,7 @@ def _to_source_unit(result, *, source: str, path: str | Path | None) -> SourceUn
         path=Path(path) if path is not None else None,
         source=source,
         root=result.ast,
-        diagnostics=(),
+        diagnostics=_diagnostics_from_tree(result.ts_tree, result.source_bytes),
         _source_bytes=result.source_bytes,
         _graph=result.graph,
     )
@@ -168,6 +168,50 @@ def _node_id(node) -> str:
     if hasattr(node, "id"):
         return getattr(node, "id")
     return getattr(node, "stable_id")
+
+
+def _diagnostics_from_tree(ts_tree, source_bytes: bytes) -> tuple[Diagnostic, ...]:
+    root = getattr(ts_tree, "root_node", None)
+    if root is None or not getattr(root, "has_error", False):
+        return ()
+
+    diagnostics: list[Diagnostic] = []
+    stack = [root]
+    while stack:
+        node = stack.pop()
+
+        if getattr(node, "is_error", False):
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    message="syntax error",
+                    span=_span_from_tree_sitter_node(node, source_bytes),
+                )
+            )
+        elif getattr(node, "is_missing", False):
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    message=f"missing syntax node: {getattr(node, 'type', 'unknown')}",
+                    span=_span_from_tree_sitter_node(node, source_bytes),
+                )
+            )
+
+        children = list(getattr(node, "children", ()))
+        stack.extend(reversed(children))
+
+    return tuple(diagnostics)
+
+
+def _span_from_tree_sitter_node(node, source_bytes: bytes) -> SourceSpan:
+    start_byte = getattr(node, "start_byte")
+    end_byte = getattr(node, "end_byte")
+    return SourceSpan(
+        start_byte=start_byte,
+        end_byte=end_byte,
+        start_point=_byte_offset_to_point(source_bytes, start_byte),
+        end_point=_byte_offset_to_point(source_bytes, end_byte),
+    )
 
 
 def _byte_offset_to_point(source_bytes: bytes, offset: int) -> tuple[int, int]:
