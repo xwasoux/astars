@@ -1,90 +1,148 @@
 # Astars
 
-> AST analysis and manipulation tools for diverse languages.
+Astars is a lightweight program-structure engine.
 
-The analysis of repositories and of code submitted to online review systems is one of the practical tasks in language processing for programming languages and necessary processing for research.
-In such cases, it is not uncommon to use ASTs (Abstract Syntax Trees).
-However, in order to use ASTs, it is necessary to understand the structure of ASTs, which differ from language to language, and to write code to perform parsing based on them.
-Also, libraries for analysis using ASTs are different for each language, so it is necessary to create libraries for each language.
-In addition, manipulating tree structures to perform various analyses of ASTs is generally a cumbersome task, which can complicate the analysis code.
+It parses source code into an AST-like structure, lets users inspect and query
+that structure, and maps nodes back to their original source spans and source
+text. Astars is intended to be a small engine that downstream packages can build
+on, rather than a full analysis product by itself.
 
+## Project Status
 
-To solve these problems, this project provides a library for easy analysis and manipulation of ASTs.
-Internally, ASTs are generated using [tree-sitter](https://tree-sitter.github.io/tree-sitter/) and analyzed based on them.
-Therefore, for languages that are supported by tree-sitter, ASTs can be generated using it.
+Astars is being reorganized around a v0 public API.
 
+The current v0 scope is intentionally small:
+
+- parse Python source code
+- inspect AST-like nodes without touching parser-specific objects
+- find nodes by kind
+- map nodes to byte spans and source text
+- provide a stable entry point for downstream `astars-*` packages
+
+The following are outside the v0 scope:
+
+- source editing primitives
+- semantic analysis
+- multi-language support
+- metrics, code review, pruning, or LLM-specific policies
+- stable compatibility for legacy `AParser`, `APruner`, or `ATraverser` APIs
 
 ## Installation
-The package is tested under Python 3. It can be installed via:
-```
+
+For the released package:
+
+```bash
 pip install astars
 ```
 
-Or, you can install the package from the source code:
-```
+The v0 API shown below may be ahead of the latest PyPI release. To try the
+development version from this repository:
+
+```bash
 git clone https://github.com/xwasoux/astars.git
-cd astars/astars
-pip install .
+cd astars
+pip install -e .
 ```
 
-## Usage
-
-Parsing a code snippet and printing the AST:
+## Quick Start
 
 ```python
->>> from astars import AParser
->>> 
->>> parser = AParser(lang="python")
->>> tree = parser.parse(
-...     '''print("Hello world!")'''
-...     )
->>> print(tree)
-module
-└── expression_statement
-    └── call
-        ├── identifier
-        └── argument_list
-            ├── (
-            ├── string
-            │   ├── string_start
-            │   ├── string_content
-            │   └── string_end
-            └── )
+import astars
+
+source = "def hello(name):\n    return name\n"
+
+unit = astars.parse_str(source, lang="python")
+
+print(unit.lang)
+print(unit.root.kind)
+
+function = unit.find(kind="FunctionDef")[0]
+
+print(unit.span_of(function))
+print(unit.source_of(function))
+print(unit.node_at(4).kind)
 ```
 
-Manipulating the AST:
+Expected output:
+
+```text
+python
+Module
+SourceSpan(start_byte=0, end_byte=32, start_point=(0, 0), end_point=(1, 15))
+def hello(name):
+    return name
+Identifier
+```
+
+## Public API
+
+Astars exposes the v0 API from the top-level `astars` package:
 
 ```python
->>> from astars import AParser, APruner
->>> 
->>> parser = AParser(lang="python")
->>> tree = parser.parse(
-...     '''print(1+2/4)
-...     ''')
->>> 
->>> res = APruner.sequencialBackwardPrune(tree=tree)
->>> for east in res:
-...     print(east[0].recover())
-... 
-print(1+2/4
+import astars
 
-print(1+2/
-
-print(1+2
-
-print(1+
-
-print(1+
-
-print(1
-
-print(
-
-print(
-
-print
-
-print
-
-
+unit = astars.parse_file("example.py", lang="python")
+unit = astars.parse_str("x = 1\n", lang="python")
+unit = astars.parse_bytes(b"x = 1\n", lang="python")
 ```
+
+Each parse function returns a `SourceUnit`.
+
+```python
+root = unit.root
+diagnostics = unit.diagnostics
+
+for node in unit.walk():
+    print(node.kind)
+
+functions = unit.find(kind="FunctionDef")
+node = unit.node_at(byte_offset=4)
+
+span = unit.span_of(functions[0])
+source_text = unit.source_of(functions[0])
+```
+
+Important public objects:
+
+- `astars.SourceUnit`
+- `astars.SourceSpan`
+- `astars.Diagnostic`
+- `astars.AstarsError`
+- `astars.UnsupportedLanguageError`
+- `astars.ParserUnavailableError`
+
+## Design Boundary
+
+Astars is an engine layer. It should answer questions such as:
+
+- What is the program structure of this source file?
+- Which nodes match this structural query?
+- Where did this node come from in the original source?
+- What source text corresponds to this node?
+
+Astars should not decide what a metric means, whether a code review finding is
+important, or which LLM evaluation policy should be applied. Those decisions
+belong in downstream packages such as `astars-metrics`, `astars-code-review`, or
+`astars-llm-eval`.
+
+## Development
+
+Run the test suite with:
+
+```bash
+python -m pytest
+```
+
+The v0 public API is covered by `tests/test_public_api.py`.
+
+## Design Documents
+
+The current strategy and architecture notes are maintained in Japanese:
+
+- [Strategy](docs/STRATEGY.ja.md)
+- [API Strategy](docs/API_STRATEGY.ja.md)
+- [Concepts](docs/CONCEPTS.ja.md)
+- [Architecture](docs/ARCHITECTURE.ja.md)
+- [Migration](docs/MIGRATION.ja.md)
+- [Release Strategy](docs/RELEASE_STRATEGY.ja.md)
+- [v0 Plan](docs/V0_PLAN.ja.md)
