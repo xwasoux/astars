@@ -294,9 +294,9 @@ TestPyPI に既に `0.0.2` が存在することは、今後の PyPI version に
 
 ## Packaging Policy
 
-package metadata は、最終的に `pyproject.toml` に集約する。
+package metadata は、`pyproject.toml` に集約する。
 
-現状では `pyproject.toml` と `setup.py` に metadata が二重に存在するため、v0 release 前に整理する。
+`setup.py` / `setup.cfg` に metadata を重複して持たせない。v0 では、PEP 517 / PEP 621 ベースの build を前提にする。
 
 方針:
 
@@ -304,15 +304,20 @@ package metadata は、最終的に `pyproject.toml` に集約する。
 - version は `setuptools_scm` によって tag から生成する
 - package discovery を明示する
 - runtime dependencies を整理する
-- `setup.py` は必要がなければ削除または最小化する
+- supported Python version は package metadata に明示する
+- legacy `setup.py` / `setup.cfg` は削除する
 
-v0 release 前に確認する dependency:
+v0 runtime dependency:
 
 - `anytree`
 - `tree-sitter`
 - `tree-sitter-python`
 
-`tree-sitter-python` を required dependency にするか optional extra にするかは、v0 実装中に判断する。
+v0 は Python reference path を主対象にするため、`tree-sitter-python` は required dependency として扱う。別言語対応を追加する段階で、language-specific parser package を optional extra に分けるか再検討する。
+
+v0 supported Python version:
+
+- Python 3.10+
 
 ## v0 Release Flow
 
@@ -376,5 +381,3 @@ release 前 checklist:
 - release note / changelog のファイル名をどうするか
 - GitHub Actions で build / publish を自動化するか
 - `0.1.0rc1` を TestPyPI のみに publish するか、PyPI pre-release としても publish するか
-- `tree-sitter-python` を required dependency にするか optional extra にするか
-- `setup.py` を削除するか、compatibility のため最小化して残すか

@@ -29,6 +29,8 @@ The following are outside the v0 scope:
 
 ## Installation
 
+Astars currently requires Python 3.10 or newer.
+
 For the released package:
 
 ```bash

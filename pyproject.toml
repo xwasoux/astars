@@ -8,15 +8,55 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "astars"
+description = "A lightweight program-structure engine."
+readme = "README.md"
 dynamic = ["version"]
+authors = [
+  { name = "Wakana Hashimoto", email = "oxwasouxo@gmail.com" },
+]
+license = { text = "MIT" }
+requires-python = ">=3.10"
 dependencies = [
   "anytree",
   "tree-sitter",
   "tree-sitter-python",
 ]
-requires-python = ">=3.9"
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+]
+
+[project.urls]
+Repository = "https://github.com/xwasoux/astars"
+
+[tool.setuptools.packages.find]
+include = [
+  "astars*",
+]
+namespaces = true
+exclude = [
+  "astars.adapter.parse.parsers*",
+]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "node-and-date"
 write_to = "astars/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
