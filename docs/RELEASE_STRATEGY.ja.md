@@ -365,6 +365,82 @@ release 前 checklist:
 - [ ] TestPyPI から install して smoke test が通る
 - [ ] PyPI publish 対象の artifact が release tag 由来である
 
+## Clean Install Checklist
+
+release branch 上で、local working tree ではなく build artifact から install できることを確認する。
+
+release tool を用意する。
+
+```bash
+python3 -m pip install -e ".[release]"
+```
+
+artifact を作る。
+
+```bash
+./checkPypi.sh
+```
+
+clean venv に wheel を install して smoke test する。
+
+```bash
+python3 -m venv /private/tmp/astars-clean-install
+/private/tmp/astars-clean-install/bin/python -m pip install --upgrade pip
+/private/tmp/astars-clean-install/bin/python -m pip install dist/*.whl
+/private/tmp/astars-clean-install/bin/python - <<'PY'
+import astars
+
+unit = astars.parse_str("def hello(name):\n    return name\n", lang="python")
+assert unit.root.kind == "Module"
+assert unit.find(kind="FunctionDef")
+assert unit.source_of(unit.find(kind="FunctionDef")[0]).startswith("def hello")
+print(astars.__version__)
+PY
+```
+
+## TestPyPI Checklist
+
+TestPyPI には release candidate を upload する。TestPyPI では runtime dependency が揃わないことがあるため、install 検証では PyPI 本番を dependency index として併用する。
+
+前提:
+
+- release candidate tag または release branch 由来の artifact を使う
+- TestPyPI に既に存在する version は再利用しない
+- 本番予定 version を雑に TestPyPI へ上げない
+
+TestPyPI に upload する。
+
+```bash
+./checkPypi.sh
+./registPypi.sh testpypi
+```
+
+TestPyPI から clean venv に install して smoke test する。
+
+```bash
+ASTARS_VERSION=0.1.0rc1
+python3 -m venv /private/tmp/astars-testpypi-install
+/private/tmp/astars-testpypi-install/bin/python -m pip install --upgrade pip
+/private/tmp/astars-testpypi-install/bin/python -m pip install \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  "astars==${ASTARS_VERSION}"
+/private/tmp/astars-testpypi-install/bin/python - <<'PY'
+import astars
+
+unit = astars.parse_str("def hello(name):\n    return name\n", lang="python")
+assert unit.root.kind == "Module"
+assert unit.find(kind="FunctionDef")
+print(astars.__version__)
+PY
+```
+
+本番 PyPI への upload は、TestPyPI install smoke test が通った後に行う。
+
+```bash
+./registPypi.sh pypi
+```
+
 ## Do Not Do
 
 避けること:
