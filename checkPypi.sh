@@ -1,3 +1,9 @@
-python3 setup.py sdist
-python3 setup.py bdist_wheel
-twine check dist/*
+#!/usr/bin/env bash
+set -euo pipefail
+
+PYTHON="${PYTHON:-python3}"
+
+rm -rf build dist astars.egg-info
+
+"${PYTHON}" -m build --sdist --wheel
+"${PYTHON}" -m twine check dist/*
