@@ -8,6 +8,7 @@ import astars
 
 
 SOURCE = "def hello(name):\n    return name\n"
+UNICODE_SOURCE = 'def hello():\n    return "é"\n'
 
 
 class PublicApiTests(unittest.TestCase):
@@ -49,6 +50,34 @@ class PublicApiTests(unittest.TestCase):
         self.assertEqual(unit.path, path)
         self.assertEqual(unit.source, SOURCE)
         self.assertEqual(unit.find(kind="FunctionDef")[0].kind, "FunctionDef")
+
+    def test_unicode_source_uses_utf8_byte_offsets(self):
+        unit = astars.parse_str(UNICODE_SOURCE, lang="python")
+
+        function = unit.find(kind="FunctionDef")[0]
+        expected_end = len(UNICODE_SOURCE.rstrip("\n").encode("utf-8"))
+
+        self.assertEqual(
+            unit.span_of(function),
+            astars.SourceSpan(0, expected_end, (0, 0), (1, 15)),
+        )
+        self.assertEqual(unit.source_of(function), UNICODE_SOURCE.rstrip("\n"))
+
+    def test_parse_file_respects_encoding(self):
+        source = 'def hello():\n    return "あ"\n'
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "sample.py"
+            path.write_bytes(source.encode("cp932"))
+
+            unit = astars.parse_file(path, lang="python", encoding="cp932")
+
+        function = unit.find(kind="FunctionDef")[0]
+        expected_end = len(source.rstrip("\n").encode("utf-8"))
+
+        self.assertEqual(unit.source, source)
+        self.assertEqual(unit.source_of(function), source.rstrip("\n"))
+        self.assertEqual(unit.span_of(function).end_byte, expected_end)
 
     def test_unsupported_language(self):
         with self.assertRaises(astars.UnsupportedLanguageError):
