@@ -25,10 +25,14 @@ repository の version は `setuptools_scm` により tag から生成する方�
 現状の課題:
 
 - PyPI と TestPyPI の version 履歴が揃っていない
-- `main`, `develop`, `feature/engine` の役割が曖昧になっている
-- `feature/engine` が長寿命の開発本線に近くなっている
-- `pyproject.toml` と `setup.py` に package metadata が二重に存在している
 - release 用 tag と publish 手順の関係が明文化されていない
+
+2026-05-31 時点の v0 public API 実装では、次の整理を進めた。
+
+- `feature/engine` は `develop` に統合済み
+- v0 実装は `feature/v0-public-api` で進める
+- package metadata は `pyproject.toml` に集約する
+- `setup.py` / `setup.cfg` は削除する
 
 ## Goals
 
@@ -168,12 +172,12 @@ flowchart LR
 
 ## Current Branch Cleanup
 
-現在の `feature/engine` は、engine 実装と戦略 docs が集まった長寿命 branch になっている。
+旧 `feature/engine` は、engine 実装と戦略 docs が集まった長寿命 branch だった。
 
-整理方針:
+整理結果と今後の方針:
 
-1. `feature/engine` の内容を `develop` に統合する
-2. 統合後、`feature/engine` は新規作業の起点にしない
+1. `feature/engine` の内容は `develop` に統合済み
+2. `feature/engine` は新規作業の起点にしない
 3. v0 実装は `develop` から小さな `feature/v0-*` branch を切る
 4. docs 作業は `docs/*` branch に分ける
 

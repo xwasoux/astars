@@ -377,7 +377,7 @@ downstream package が通常依存してよいもの:
 - `usecase/` が engine operation なのか domain use case なのか曖昧
 - `adapter/edit/` が parser adapter なのか edit primitive なのか曖昧
 - `core/syntax`, `core/cst`, `core/ast` は方向性が近いが、public boundary は未整理
-- examples と README が legacy API を参照している
+- examples と README は v0 public API へ移行する
 
 実装整理では、まず public API と core model の境界を固定し、その後に module 名を整理する。
 
