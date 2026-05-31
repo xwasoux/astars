@@ -15,5 +15,7 @@
 - `ARCHITECTURE.md` / `ARCHITECTURE.ja.md`: module 構成、依存方向、data flow
 - `ROADMAP.md` / `ROADMAP.ja.md`: 実装 phase、milestone、release plan
 - `MIGRATION.md` / `MIGRATION.ja.md`: 旧 API から新 API への移行方針
+- `V0_PLAN.md` / `V0_PLAN.ja.md`: v0 public API 実装の具体的な作業計画
+- `RELEASE_STRATEGY.md` / `RELEASE_STRATEGY.ja.md`: branch strategy、versioning、PyPI/TestPyPI publish 方針
 
 分割の基準は、読む人の関心である。戦略判断を知りたい人は `STRATEGY`、実装に入る人は `ARCHITECTURE`、downstream package を作る人は `API_STRATEGY` と `CONCEPTS` を読む、という状態を目指す。
