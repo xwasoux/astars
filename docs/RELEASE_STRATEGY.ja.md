@@ -350,20 +350,61 @@ v0 supported Python version:
 
 ## Release Checklist
 
-release 前 checklist:
+release 前 checklist は、手作業の記憶ではなく、script で再現できる状態に寄せる。
 
-- [ ] `CHANGELOG.md` または release note を用意する
+### Release Preparation
+
+- [ ] release branch が `develop` から切られている
+- [ ] `CHANGELOG.md` または release note を用意している
 - [ ] README の install / usage が正しい
 - [ ] package metadata が正しい
-- [ ] version tag が正しい
-- [ ] clean environment で build できる
-- [ ] clean environment で install できる
-- [ ] `import astars` が通る
-- [ ] `astars.parse_str(..., lang="python")` が通る
 - [ ] public API tests が通る
+
+```bash
+.venv/bin/python -m pytest
+```
+
+### Artifact Verification
+
+- [ ] build artifact が作れる
+- [ ] `twine check` が通る
+- [ ] local wheel から clean install smoke test が通る
+- [ ] generated version が想定と合っている
+
+```bash
+git describe --tags --dirty --always
+./checkPypi.sh
+./checkInstall.sh dist
+```
+
+### TestPyPI Verification
+
+- [ ] TestPyPI 用 version が既存 upload と衝突していない
 - [ ] TestPyPI publish が成功している
-- [ ] TestPyPI から install して smoke test が通る
+- [ ] TestPyPI から clean install smoke test が通る
+
+```bash
+RC_VERSION=0.1.1rc1
+./registPypi.sh testpypi
+ASTARS_VERSION="${RC_VERSION}" ./checkInstall.sh testpypi
+```
+
+### Final PyPI Verification
+
+- [ ] release branch が `main` に merge されている
+- [ ] release tag が `main` に打たれている
 - [ ] PyPI publish 対象の artifact が release tag 由来である
+- [ ] PyPI publish が成功している
+- [ ] PyPI から clean install smoke test が通る
+- [ ] `main` が `develop` に merge back されている
+
+```bash
+RELEASE_VERSION=0.1.1
+git describe --tags --dirty --always
+./checkPypi.sh
+./registPypi.sh pypi
+ASTARS_VERSION="${RELEASE_VERSION}" ./checkInstall.sh pypi
+```
 
 ## Clean Install Checklist
 
