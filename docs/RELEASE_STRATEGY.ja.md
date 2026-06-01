@@ -375,10 +375,11 @@ release tool を用意する。
 python3 -m pip install -e ".[release]"
 ```
 
-`checkPypi.sh` と `registPypi.sh` は、既定では `python3` を使う。別の venv を使う場合は `PYTHON` で明示する。
+`checkPypi.sh`、`checkInstall.sh`、`registPypi.sh` は、既定では `python3` を使う。別の Python を使う場合は `PYTHON` で明示する。
 
 ```bash
 PYTHON=/path/to/venv/bin/python ./checkPypi.sh
+PYTHON=/path/to/venv/bin/python ./checkInstall.sh dist
 PYTHON=/path/to/venv/bin/python ./registPypi.sh testpypi
 ```
 
@@ -393,18 +394,7 @@ artifact を作る。
 clean venv に wheel を install して smoke test する。
 
 ```bash
-python3 -m venv /private/tmp/astars-clean-install
-/private/tmp/astars-clean-install/bin/python -m pip install --upgrade pip
-/private/tmp/astars-clean-install/bin/python -m pip install dist/*.whl
-/private/tmp/astars-clean-install/bin/python - <<'PY'
-import astars
-
-unit = astars.parse_str("def hello(name):\n    return name\n", lang="python")
-assert unit.root.kind == "Module"
-assert unit.find(kind="FunctionDef")
-assert unit.source_of(unit.find(kind="FunctionDef")[0]).startswith("def hello")
-print(astars.__version__)
-PY
+./checkInstall.sh dist
 ```
 
 ## TestPyPI Checklist
@@ -434,27 +424,19 @@ PYTHON=/path/to/venv/bin/python ./registPypi.sh testpypi
 TestPyPI から clean venv に install して smoke test する。
 
 ```bash
-ASTARS_VERSION=0.1.0rc1
-python3 -m venv /private/tmp/astars-testpypi-install
-/private/tmp/astars-testpypi-install/bin/python -m pip install --upgrade pip
-/private/tmp/astars-testpypi-install/bin/python -m pip install \
-  --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
-  "astars==${ASTARS_VERSION}"
-/private/tmp/astars-testpypi-install/bin/python - <<'PY'
-import astars
-
-unit = astars.parse_str("def hello(name):\n    return name\n", lang="python")
-assert unit.root.kind == "Module"
-assert unit.find(kind="FunctionDef")
-print(astars.__version__)
-PY
+ASTARS_VERSION=0.1.0rc1 ./checkInstall.sh testpypi
 ```
 
 本番 PyPI への upload は、TestPyPI install smoke test が通った後に行う。
 
 ```bash
 ./registPypi.sh pypi
+```
+
+PyPI publish 後も、同じ smoke test を PyPI から実行する。
+
+```bash
+ASTARS_VERSION=0.1.0 ./checkInstall.sh pypi
 ```
 
 ## Do Not Do
