@@ -6,6 +6,8 @@
 
 この文書は、Astars の導入ストーリーと近い実装戦略を整理する。
 
+リリース単位の直近計画は [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md) で管理する。
+
 ## 導入ストーリー
 
 Astars の導入は、いきなり大きな ecosystem を作るのではなく、小さな engine workflow から始める。
@@ -42,6 +44,31 @@ Python reference path が安定したら、second language を使って adapter 
 
 
 ## 近い戦略
+
+### Release 0.1.1: Maintenance
+
+`0.1.1` は、`0.1.0` の public API を大きく広げず、release 品質と導入時の摩擦を下げるための patch release とする。
+
+主な対象:
+
+- documentation status の整理
+- release tooling の改善
+- packaging metadata の確認
+- clean install / smoke test 手順の整理
+- public API regression の補強
+
+### Release 0.2.0: Engine Capability
+
+`0.2.0` は、downstream package がより自然に Astars を使えるようにするための minor release とする。
+
+候補:
+
+- query / traversal の整理
+- source model / source mapping の安定化
+- extension-level contract の文書化
+- public node interface の強化
+- edit primitive の設計 spike
+- downstream prototype による検証
 
 ### Phase 1: Engine Surface を安定させる
 
