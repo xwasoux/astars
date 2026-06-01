@@ -1,6 +1,6 @@
 # Astars ロードマップ
 
-ステータス: draft
+ステータス: 継続更新中
 
 関連戦略: [STRATEGY.ja.md](STRATEGY.ja.md)
 

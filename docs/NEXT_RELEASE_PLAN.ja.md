@@ -1,6 +1,6 @@
 # Astars 次期リリース計画
 
-ステータス: draft
+ステータス: `0.1.1` / `0.2.0` 計画中
 
 関連文書:
 
@@ -66,7 +66,7 @@
 候補:
 
 - documentation status の整理
-  - `v0 実装中` などの release 前表現を更新する
+  - release 前表現が残っていないか確認する
   - 存在しない英語版リンクや古い参照を取り除く
   - `0.1.0` release 後の正しい starting point を明示する
 - release tooling の改善
