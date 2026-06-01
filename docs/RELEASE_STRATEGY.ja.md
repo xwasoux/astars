@@ -375,6 +375,15 @@ release tool を用意する。
 python3 -m pip install -e ".[release]"
 ```
 
+`checkPypi.sh` と `registPypi.sh` は、既定では `python3` を使う。別の venv を使う場合は `PYTHON` で明示する。
+
+```bash
+PYTHON=/path/to/venv/bin/python ./checkPypi.sh
+PYTHON=/path/to/venv/bin/python ./registPypi.sh testpypi
+```
+
+`build` / `twine` が見つからない場合、script は artifact を削除する前に停止し、release dependency の install 手順を表示する。
+
 artifact を作る。
 
 ```bash
@@ -413,6 +422,13 @@ TestPyPI に upload する。
 ```bash
 ./checkPypi.sh
 ./registPypi.sh testpypi
+```
+
+release tool 用の venv を使う場合:
+
+```bash
+PYTHON=/path/to/venv/bin/python ./checkPypi.sh
+PYTHON=/path/to/venv/bin/python ./registPypi.sh testpypi
 ```
 
 TestPyPI から clean venv に install して smoke test する。
