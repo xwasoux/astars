@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.1 - Unreleased
+
+Astars 0.1.1 is planned as a release-process polish update for the v0.1 line.
+It does not change the v0 public API.
+
+### Added
+
+- `checkInstall.sh` for clean install smoke tests from local wheel artifacts,
+  TestPyPI, or PyPI.
+
+### Changed
+
+- Improved `checkPypi.sh` and `registPypi.sh` error messages when release
+  dependencies such as `build` or `twine` are missing.
+- Updated the release checklist to use `checkPypi.sh`, `checkInstall.sh`, and
+  `registPypi.sh` as the canonical release verification flow.
+- Refreshed Japanese strategy and release documents for the post-`0.1.0`
+  project state.
+
+### Verification
+
+- Public API test suite passes.
+- Local wheel clean install smoke test passes through `checkInstall.sh dist`.
+- Wheel and source distribution checks pass through `checkPypi.sh`.
+
 ## 0.1.0 - 2026-06-01
 
 Astars 0.1.0 is the first v0 public API release.
