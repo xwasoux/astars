@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-06-01
 
 Astars 0.1.0 is the first v0 public API release.
 
