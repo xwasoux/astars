@@ -2,8 +2,6 @@
 
 ステータス: draft
 
-English version: [API_STRATEGY.md](API_STRATEGY.md)
-
 関連文書:
 
 - [STRATEGY.ja.md](STRATEGY.ja.md)

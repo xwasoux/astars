@@ -1,6 +1,6 @@
 # Astars v0 実装計画
 
-ステータス: v0 public API vertical slice 実装中
+ステータス: `0.1.0` で完了
 
 関連文書:
 
@@ -10,8 +10,11 @@
 - [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
 - [MIGRATION.ja.md](MIGRATION.ja.md)
 - [RELEASE_STRATEGY.ja.md](RELEASE_STRATEGY.ja.md)
+- [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)
 
 この文書は、Astars を軽量な program structure engine として動かすための v0 実装計画である。
+
+`0.1.0` release で、この文書に定義した最小 workflow は成立した。release 後の保守と次期 minor release の計画は、[NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md) で扱う。
 
 `STRATEGY.ja.md` や `ARCHITECTURE.ja.md` は方向性を定義する文書であり、`API_STRATEGY.ja.md` は public API の契約を定義する文書である。この文書は、それらを実際の実装順序に落とす。
 
@@ -482,3 +485,5 @@ v0 の次に検討するもの:
 - package layout の rename
 - `astars-metrics` など downstream package の prototype
 - second language validation
+
+これらはすべて同じ release に入れるものではない。`0.1.1` では保守・文書・配布周りを中心に扱い、`0.2.0` では query / traversal、source mapping、edit primitive などから primary theme を選ぶ。

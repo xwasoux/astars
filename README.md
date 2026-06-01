@@ -153,3 +153,4 @@ The current strategy and architecture notes are maintained in Japanese:
 - [Migration](docs/MIGRATION.ja.md)
 - [Release Strategy](docs/RELEASE_STRATEGY.ja.md)
 - [v0 Plan](docs/V0_PLAN.ja.md)
+- [Next Release Plan](docs/NEXT_RELEASE_PLAN.ja.md)
