@@ -171,6 +171,8 @@ astars/_version.py
 *.json
 *.jsonl
 *.png
+!docs/assets/
+!docs/assets/logo.png
 *.dot
 *.pyc
 *.pkl

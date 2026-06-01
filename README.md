@@ -1,15 +1,21 @@
-# Astars
+<p align="center">
+  <img src="https://raw.githubusercontent.com/xwasoux/astars/main/docs/assets/logo.png" alt="Astars logo" width="520">
+</p>
 
-Astars is a lightweight program-structure engine.
+<h1 align="center">Astars</h1>
 
-It parses source code into an AST-like structure, lets users inspect and query
+<p align="center">
+  <strong>A lightweight program-structure engine.</strong>
+</p>
+
+Astars parses source code into an AST-like structure, lets users inspect and query
 that structure, and maps nodes back to their original source spans and source
 text. Astars is intended to be a small engine that downstream packages can build
 on, rather than a full analysis product by itself.
 
 ## Project Status
 
-Astars is being reorganized around a v0 public API.
+Astars 0.1.0 provides the first v0 public API.
 
 The current v0 scope is intentionally small:
 
@@ -37,8 +43,7 @@ For the released package:
 pip install astars
 ```
 
-The v0 API shown below may be ahead of the latest PyPI release. To try the
-development version from this repository:
+To try the development version from this repository:
 
 ```bash
 git clone https://github.com/xwasoux/astars.git
