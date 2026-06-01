@@ -1,0 +1,31 @@
+version: '3'
+services:
+
+  astars:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    #   args:
+    #     # User setting
+    #     - USERNAME=${USER_NAME}
+    #     - USER_UID=${USER_UID}
+    #     - USER_GID=${USER_GID}
+    #     # Network setting
+    #     - HTTP_PROXY=${HTTP_PROXY}
+    #     - HTTPS_PROXY=${HTTPS_PROXY}
+    #     - http_proxy=${HTTP_PROXY}
+    #     - https_proxy=${HTTPS_PROXY}
+    # environment:
+    #   # Network setting
+    #   - HTTP_PROXY=${HTTP_PROXY}
+    #   - HTTPS_PROXY=${HTTPS_PROXY}
+    #   - http_proxy=${HTTP_PROXY}
+    #   - https_proxy=${HTTPS_PROXY}
+
+
+    volumes:
+      - ..:/app
+    
+    tty: true
+    stdin_open: true
+    working_dir: /app
