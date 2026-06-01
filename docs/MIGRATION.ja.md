@@ -1,6 +1,6 @@
 # Astars 移行計画
 
-ステータス: draft
+ステータス: `0.1.0` release 後に更新中
 
 関連文書:
 
@@ -44,16 +44,16 @@
 
 ## Current State
 
-現在の repository には、目標アーキテクチャに近い部品と、まだ責務が曖昧な部品が混在している。
+`0.1.0` release 時点で、最小の public API surface は成立した。一方で、目標アーキテクチャに近い部品と、まだ責務が曖昧な内部構造は混在している。
 
 ```mermaid
 flowchart LR
     Current["current repository\nmixed responsibilities"]
-    API["public API\nnot stable yet"]
+    API["public API\n0.1 baseline available"]
     Core["core syntax / CST / AST\npromising but boundary unclear"]
     Adapter["parser adapter\npartially isolated"]
     Usecase["usecase\nengine operation or downstream logic?"]
-    Examples["README / examples\nlegacy API"]
+    Examples["README / examples\nv0 public API"]
 
     Current --> API
     Current --> Core
@@ -62,16 +62,22 @@ flowchart LR
     Current --> Examples
 ```
 
-主な gap は次の通り。
+`0.1.0` で解消した gap:
 
-- `astars.__init__` が安定 public API として整理されていない
-- `astars/api.py` と `astars/engine.py` の責務が未定義
+- `astars.__init__` から v0 public API を import できる
+- `astars.parse_str` / `parse_bytes` / `parse_file` が `SourceUnit` を返す
+- README と examples は v0 public API を主役にしている
+- package metadata は `pyproject.toml` に集約されている
+- public API tests が v0 workflow を守っている
+
+残っている主な gap:
+
 - `usecase/` が engine operation と domain-specific use case のどちらを表すのか曖昧
 - `adapter/edit/` が adapter なのか edit operation なのか曖昧
 - `core/syntax`, `core/cst`, `core/ast` は方向性が近いが、public boundary が未整理
-- README と examples が `AParser`, `APruner` などの legacy API を前提としている
-- package metadata に runtime dependency と supported language の方針が十分に反映されていない
-- tests が新しい engine surface を守る形になっていない
+- `SourceText` / `SourceSpan` / mapping 周辺の module boundary は整理余地がある
+- CST / `RawSyntaxNode` を public、extension-level、internal のどこに置くかは未決定である
+- edit primitive はまだ public API に含めていない
 
 ## Target Shape
 

@@ -1,6 +1,6 @@
 # Astars API 戦略
 
-ステータス: draft
+ステータス: v0.1 baseline / 継続更新中
 
 関連文書:
 

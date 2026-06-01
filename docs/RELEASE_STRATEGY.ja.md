@@ -1,6 +1,6 @@
 # Astars リリース戦略
 
-ステータス: draft
+ステータス: `0.1.0` release 後に更新中
 
 関連文書:
 
@@ -11,28 +11,30 @@
 
 この文書は、Astars の branch strategy、versioning、PyPI / TestPyPI への publish 方針を定義する。
 
-目的は、v0 実装に入る前に、どの branch を安定線とし、どの version を PyPI に登録し、TestPyPI をどう使うかを明確にすることである。
+目的は、`0.1.0` 以降の release 作業を再現可能にし、どの branch を安定線とし、どの version を PyPI に登録し、TestPyPI をどう使うかを明確にすることである。
 
 ## Current State
 
-2026-05-31 時点の公開 package は次の通り。
+2026-06-01 時点の公開 package は次の通り。
 
-- PyPI: [`astars 0.0.1`](https://pypi.org/project/astars/)
-- TestPyPI: [`astars 0.0.2`](https://test.pypi.org/project/astars/)
+- PyPI: [`astars 0.1.0`](https://pypi.org/project/astars/)
+- TestPyPI: [`astars 0.1.0rc1`](https://test.pypi.org/project/astars/)
 
 repository の version は `setuptools_scm` により tag から生成する方針になっている。
 
+`0.1.0` release で次の整理は完了した。
+
+- v0 public API を PyPI に publish した
+- release tag と PyPI version を一致させる運用を確認した
+- TestPyPI は release candidate と publish 手順の検証先として使う方針にした
+- package metadata は `pyproject.toml` に集約した
+- `setup.py` / `setup.cfg` は削除した
+
 現状の課題:
 
-- PyPI と TestPyPI の version 履歴が揃っていない
-- release 用 tag と publish 手順の関係が明文化されていない
-
-2026-05-31 時点の v0 public API 実装では、次の整理を進めた。
-
-- `feature/engine` は `develop` に統合済み
-- v0 実装は `feature/v0-public-api` で進める
-- package metadata は `pyproject.toml` に集約する
-- `setup.py` / `setup.cfg` は削除する
+- `0.1.x` patch release の再現性を高める
+- release checklist と helper script を実運用に合わせて保つ
+- GitHub Actions などによる publish 自動化は未導入である
 
 ## Goals
 
@@ -91,7 +93,7 @@ flowchart LR
 
 - feature branch は原則として `develop` から切る
 - feature branch は `develop` に戻す
-- v0 実装の統合先は `develop` とする
+- 通常の実装・文書更新の統合先は `develop` とする
 - `develop` は常に完全安定である必要はないが、最低限 import / test が壊れ続けない状態を目指す
 
 ### `feature/*`
@@ -170,7 +172,7 @@ flowchart LR
 - 修正後、`main` に merge して patch release tag を打つ
 - その後 `develop` にも反映する
 
-## Current Branch Cleanup
+## Historical Branch Cleanup
 
 旧 `feature/engine` は、engine 実装と戦略 docs が集まった長寿命 branch だった。
 
@@ -178,7 +180,7 @@ flowchart LR
 
 1. `feature/engine` の内容は `develop` に統合済み
 2. `feature/engine` は新規作業の起点にしない
-3. v0 実装は `develop` から小さな `feature/v0-*` branch を切る
+3. 新規実装は `develop` から小さな `feature/*` branch を切る
 4. docs 作業は `docs/*` branch に分ける
 
 `feature/engine` は歴史的な移行 branch として扱い、今後の本線にはしない。
@@ -203,18 +205,17 @@ v0 の間は `0.x.y` を使う。
 - `0.3.0`: language support 拡張など
 - `1.0.0`: public API の安定宣言
 
-## Next Public Version
+## Released Baseline And Next Versions
 
-PyPI には既に `0.0.1` が存在する。TestPyPI には `0.0.2` が存在する。
+`0.1.0` は、v0 public API を持つ最初の engine release として PyPI に publish 済みである。
 
-次の PyPI release は `0.1.0` とする。
+今後の version は次のように扱う。
 
-理由:
+- `0.1.x`: `0.1.0` public API を大きく広げない bug fix / documentation fix / packaging fix
+- `0.2.0`: query、source mapping、edit primitive などの機能追加
+- `0.3.0`: language support 拡張など、さらに大きい機能追加
 
-- `0.0.x` は初期実験 version として扱う
-- v0 public API を持つ最初の engine release として `0.1.0` が自然である
-- TestPyPI の `0.0.2` に合わせて PyPI を `0.0.2` にする必要はない
-- TestPyPI の version 履歴は本番 release の判断基準にしない
+TestPyPI の過去 version 履歴は、本番 PyPI version の判断基準にしない。
 
 ## Pre-release Policy
 
@@ -223,20 +224,19 @@ release 前の検証が必要な場合は、PEP 440 の pre-release を使う。
 例:
 
 ```text
-0.1.0a1
-0.1.0a2
-0.1.0rc1
-0.1.0
+0.1.1a1
+0.1.1rc1
+0.1.1
 ```
 
 方針:
 
 - `a` は実装途中の alpha
 - `rc` は release candidate
-- PyPI に publish する final release は `0.1.0`
-- TestPyPI での検証には `0.1.0a1` や `0.1.0rc1` を使ってよい
+- PyPI に publish する final release は suffix のない version とする
+- TestPyPI での検証には `0.1.1rc1` や `0.2.0rc1` のような release candidate を使ってよい
 
-ただし、小規模な v0 release では、TestPyPI に `0.1.0rc1` を publish して確認し、問題なければ `v0.1.0` tag から PyPI に publish する運用で十分である。
+ただし、小規模な patch release では、TestPyPI に release candidate を publish して確認し、問題なければ final tag から PyPI に publish する運用で十分である。
 
 ## Tag Policy
 
@@ -290,8 +290,8 @@ TestPyPI は、publish 手順と artifact の検証に使う。
 例:
 
 ```text
-0.1.0rc1  -> TestPyPI
-0.1.0     -> PyPI
+0.1.1rc1  -> TestPyPI
+0.1.1     -> PyPI
 ```
 
 TestPyPI に既に `0.0.2` が存在することは、今後の PyPI version には影響させない。
@@ -300,7 +300,7 @@ TestPyPI に既に `0.0.2` が存在することは、今後の PyPI version に
 
 package metadata は、`pyproject.toml` に集約する。
 
-`setup.py` / `setup.cfg` に metadata を重複して持たせない。v0 では、PEP 517 / PEP 621 ベースの build を前提にする。
+`setup.py` / `setup.cfg` に metadata を重複して持たせない。現時点では、PEP 517 / PEP 621 ベースの build を前提にする。
 
 方針:
 
@@ -311,21 +311,21 @@ package metadata は、`pyproject.toml` に集約する。
 - supported Python version は package metadata に明示する
 - legacy `setup.py` / `setup.cfg` は削除する
 
-v0 runtime dependency:
+current runtime dependency:
 
 - `anytree`
 - `tree-sitter`
 - `tree-sitter-python`
 
-v0 は Python reference path を主対象にするため、`tree-sitter-python` は required dependency として扱う。別言語対応を追加する段階で、language-specific parser package を optional extra に分けるか再検討する。
+現時点では Python reference path を主対象にするため、`tree-sitter-python` は required dependency として扱う。別言語対応を追加する段階で、language-specific parser package を optional extra に分けるか再検討する。
 
-v0 supported Python version:
+current supported Python version:
 
 - Python 3.10+
 
-## v0 Release Flow
+## Historical 0.1.0 Release Flow
 
-`0.1.0` release は、次の流れを基本とする。
+`0.1.0` release は、次の流れで完了した。今後の release では、この履歴ではなく `Release Checklist` を基準にする。
 
 1. `develop` から `feature/v0-public-api` を切る
 2. public API skeleton を実装する
@@ -499,4 +499,4 @@ ASTARS_VERSION=0.1.0 ./checkInstall.sh pypi
 - `develop` を今後も維持するか、将来的に `main` trunk-based に寄せるか
 - release note / changelog のファイル名をどうするか
 - GitHub Actions で build / publish を自動化するか
-- `0.1.0rc1` を TestPyPI のみに publish するか、PyPI pre-release としても publish するか
+- release candidate を TestPyPI のみに publish するか、PyPI pre-release としても publish するか
