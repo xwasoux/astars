@@ -54,6 +54,10 @@ class SourceUnit:
         return list(self.walk(kind=kind))
 
     def node_at(self, byte_offset: int) -> Optional["ASTNode"]:
+        self._validate_byte_offset(byte_offset)
+        if byte_offset == len(self._source_bytes):
+            return None
+
         ast_id = self._graph.ast_at(byte_offset)
         if ast_id is None:
             return None
@@ -64,6 +68,8 @@ class SourceUnit:
         return None
 
     def span_of(self, node: "ASTNode") -> Optional[SourceSpan]:
+        self._ensure_owns_node(node)
+
         span = self._graph.span_of_ast(_node_id(node))
         if span is None:
             return None
@@ -84,6 +90,19 @@ class SourceUnit:
             "utf-8",
             errors="replace",
         )
+
+    def _validate_byte_offset(self, byte_offset: int) -> None:
+        if not isinstance(byte_offset, int):
+            raise AstarsError(f"byte offset must be int: {byte_offset!r}")
+        if byte_offset < 0 or byte_offset > len(self._source_bytes):
+            raise AstarsError(
+                f"byte offset out of range: {byte_offset} "
+                f"(source length: {len(self._source_bytes)})"
+            )
+
+    def _ensure_owns_node(self, node: "ASTNode") -> None:
+        if not any(candidate is node for candidate in self.walk()):
+            raise AstarsError("node does not belong to this SourceUnit")
 
 
 def parse_str(source: str, *, lang: str, path: str | Path | None = None) -> SourceUnit:
