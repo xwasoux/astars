@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Optional
 
+from astars.text import SourceText
+
 if TYPE_CHECKING:
     from astars.core.ast.node import ASTNode
 
@@ -42,7 +44,7 @@ class SourceUnit:
     source: str
     root: "ASTNode"
     diagnostics: tuple[Diagnostic, ...]
-    _source_bytes: bytes
+    _source_text: SourceText
     _graph: object
 
     def walk(self, kind: Optional[str] = None) -> Iterator["ASTNode"]:
@@ -55,7 +57,7 @@ class SourceUnit:
 
     def node_at(self, byte_offset: int) -> Optional["ASTNode"]:
         self._validate_byte_offset(byte_offset)
-        if byte_offset == len(self._source_bytes):
+        if self._source_text.is_eof(byte_offset):
             return None
 
         ast_id = self._graph.ast_at(byte_offset)
@@ -75,34 +77,35 @@ class SourceUnit:
             return None
 
         start_byte, end_byte = span
-        return SourceSpan(
-            start_byte=start_byte,
-            end_byte=end_byte,
-            start_point=_byte_offset_to_point(self._source_bytes, start_byte),
-            end_point=_byte_offset_to_point(self._source_bytes, end_byte),
-        )
+        return self._source_span_from_range(start_byte, end_byte)
 
     def source_of(self, node: "ASTNode") -> Optional[str]:
         span = self.span_of(node)
         if span is None:
             return None
-        return self._source_bytes[span.start_byte : span.end_byte].decode(
-            "utf-8",
-            errors="replace",
-        )
+        return self._source_text.slice_text(span.start_byte, span.end_byte)
 
     def _validate_byte_offset(self, byte_offset: int) -> None:
-        if not isinstance(byte_offset, int):
-            raise AstarsError(f"byte offset must be int: {byte_offset!r}")
-        if byte_offset < 0 or byte_offset > len(self._source_bytes):
-            raise AstarsError(
-                f"byte offset out of range: {byte_offset} "
-                f"(source length: {len(self._source_bytes)})"
-            )
+        try:
+            self._source_text.validate_offset(byte_offset)
+        except ValueError as exc:
+            raise AstarsError(str(exc)) from exc
 
     def _ensure_owns_node(self, node: "ASTNode") -> None:
         if not any(candidate is node for candidate in self.walk()):
             raise AstarsError("node does not belong to this SourceUnit")
+
+    def _source_span_from_range(self, start_byte: int, end_byte: int) -> SourceSpan:
+        try:
+            self._source_text.validate_range(start_byte, end_byte)
+            return SourceSpan(
+                start_byte=start_byte,
+                end_byte=end_byte,
+                start_point=self._source_text.point_at(start_byte),
+                end_point=self._source_text.point_at(end_byte),
+            )
+        except ValueError as exc:
+            raise AstarsError(str(exc)) from exc
 
 
 def parse_str(source: str, *, lang: str, path: str | Path | None = None) -> SourceUnit:
@@ -136,13 +139,14 @@ def parse_file(path: str | Path, *, lang: str, encoding: str = "utf-8") -> Sourc
 
 
 def _to_source_unit(result, *, source: str, path: str | Path | None) -> SourceUnit:
+    source_text = SourceText(source_code=source, source_bytes=result.source_bytes)
     return SourceUnit(
         lang=result.lang,
         path=Path(path) if path is not None else None,
         source=source,
         root=result.ast,
-        diagnostics=_diagnostics_from_tree(result.ts_tree, result.source_bytes),
-        _source_bytes=result.source_bytes,
+        diagnostics=_diagnostics_from_tree(result.ts_tree, source_text),
+        _source_text=source_text,
         _graph=result.graph,
     )
 
@@ -189,7 +193,7 @@ def _node_id(node) -> str:
     return getattr(node, "stable_id")
 
 
-def _diagnostics_from_tree(ts_tree, source_bytes: bytes) -> tuple[Diagnostic, ...]:
+def _diagnostics_from_tree(ts_tree, source_text: SourceText) -> tuple[Diagnostic, ...]:
     root = getattr(ts_tree, "root_node", None)
     if root is None or not getattr(root, "has_error", False):
         return ()
@@ -204,7 +208,7 @@ def _diagnostics_from_tree(ts_tree, source_bytes: bytes) -> tuple[Diagnostic, ..
                 Diagnostic(
                     severity="error",
                     message="syntax error",
-                    span=_span_from_tree_sitter_node(node, source_bytes),
+                    span=_span_from_tree_sitter_node(node, source_text),
                 )
             )
         elif getattr(node, "is_missing", False):
@@ -212,7 +216,7 @@ def _diagnostics_from_tree(ts_tree, source_bytes: bytes) -> tuple[Diagnostic, ..
                 Diagnostic(
                     severity="error",
                     message=f"missing syntax node: {getattr(node, 'type', 'unknown')}",
-                    span=_span_from_tree_sitter_node(node, source_bytes),
+                    span=_span_from_tree_sitter_node(node, source_text),
                 )
             )
 
@@ -222,25 +226,13 @@ def _diagnostics_from_tree(ts_tree, source_bytes: bytes) -> tuple[Diagnostic, ..
     return tuple(diagnostics)
 
 
-def _span_from_tree_sitter_node(node, source_bytes: bytes) -> SourceSpan:
+def _span_from_tree_sitter_node(node, source_text: SourceText) -> SourceSpan:
     start_byte = getattr(node, "start_byte")
     end_byte = getattr(node, "end_byte")
+    source_text.validate_range(start_byte, end_byte)
     return SourceSpan(
         start_byte=start_byte,
         end_byte=end_byte,
-        start_point=_byte_offset_to_point(source_bytes, start_byte),
-        end_point=_byte_offset_to_point(source_bytes, end_byte),
+        start_point=source_text.point_at(start_byte),
+        end_point=source_text.point_at(end_byte),
     )
-
-
-def _byte_offset_to_point(source_bytes: bytes, offset: int) -> tuple[int, int]:
-    safe_offset = max(0, min(offset, len(source_bytes)))
-    line = 0
-    line_start = 0
-
-    for idx, byte in enumerate(source_bytes[:safe_offset]):
-        if byte == 0x0A:
-            line += 1
-            line_start = idx + 1
-
-    return (line, safe_offset - line_start)
