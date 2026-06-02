@@ -15,6 +15,7 @@
 - `CONCEPTS.ja.md`: `RawSyntaxNode`, CST, AST, `SyntaxGraph`, source span の概念定義
 - `USE_CASES.ja.md`: research / practical use cases の詳細
 - `ARCHITECTURE.ja.md`: module 構成、依存方向、data flow
+- `SOURCE_MAPPING_PLAN.ja.md`: source mapping の public behavior と internal responsibility
 - `ROADMAP.ja.md`: 実装 phase、milestone、release plan
 - `MIGRATION.ja.md`: 旧 API から新 API への移行方針
 - `V0_PLAN.ja.md`: v0 public API 実装の具体的な作業計画

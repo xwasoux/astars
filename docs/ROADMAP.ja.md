@@ -70,6 +70,8 @@ Python reference path が安定したら、second language を使って adapter 
 - edit primitive の設計 spike
 - downstream prototype による検証
 
+`0.2.0` の primary theme は source mapping 安定化とし、詳細は [SOURCE_MAPPING_PLAN.ja.md](SOURCE_MAPPING_PLAN.ja.md) で管理する。
+
 ### Phase 1: Engine Surface を安定させる
 
 - public API を定義する

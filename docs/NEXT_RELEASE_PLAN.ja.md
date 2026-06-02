@@ -7,6 +7,7 @@
 - [V0_PLAN.ja.md](V0_PLAN.ja.md)
 - [ROADMAP.ja.md](ROADMAP.ja.md)
 - [API_STRATEGY.ja.md](API_STRATEGY.ja.md)
+- [SOURCE_MAPPING_PLAN.ja.md](SOURCE_MAPPING_PLAN.ja.md)
 - [RELEASE_STRATEGY.ja.md](RELEASE_STRATEGY.ja.md)
 
 この文書は、`0.1.0` release 後の作業を、patch release で扱う保守作業と、minor release で扱う機能拡張に分けるための計画である。
@@ -50,7 +51,7 @@
 
 `0.1.x` は、`0.1.0` の public API を大きく広げず、release 品質と利用開始時の摩擦を下げるための line とする。
 
-`0.2.0` は、downstream package がより自然に Astars を使えるようにするための engine capability を追加する line とする。
+`0.2.0` は、downstream package がより自然に Astars を使えるようにするための engine capability を追加する line とする。現時点の primary theme は source mapping 安定化である。
 
 原則:
 
@@ -117,6 +118,8 @@
 ### 2. Source Model / Mapping の安定化
 
 Astars の中核価値である node-to-source mapping をより信頼できるものにする。
+
+詳細な計画は [SOURCE_MAPPING_PLAN.ja.md](SOURCE_MAPPING_PLAN.ja.md) で扱う。
 
 候補:
 
