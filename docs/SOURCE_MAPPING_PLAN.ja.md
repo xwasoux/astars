@@ -112,7 +112,7 @@ public behavior は、downstream package が依存してよい挙動である。
 - mapping が存在しない場合は `None` を返す
 - invalid span を捏造しない
 - parser-specific object を返さない
-- `node` が同じ `SourceUnit` に属しているか検証するかは `0.2.0` で判断する
+- 別の `SourceUnit` 由来の node に対しては `AstarsError` を投げる
 
 `None` になる候補:
 
@@ -120,11 +120,9 @@ public behavior は、downstream package が依存してよい挙動である。
 - root から source span を定義できない node
 - mapping graph に AST node id が存在しない node
 - mapping graph に raw span が存在しない node
-- 別の `SourceUnit` 由来の node
 
 未決定:
 
-- 別 `SourceUnit` の node に対して `None` を返すか、`AstarsError` を投げるか
 - source span が複数の不連続 range になる node を、covering span で表すか、将来 `SourceSelection` のような別 concept にするか
 
 ### unit.source_of(node)
@@ -153,6 +151,7 @@ public behavior は、downstream package が依存してよい挙動である。
 - input は UTF-8 encoded source bytes に対する byte offset とする
 - offset が source 内の node span に含まれる場合、最も具体的な node を返す
 - 該当 node がない場合は `None` を返す
+- negative offset や source length より大きい offset には `AstarsError` を投げる
 - parser-specific object を返さない
 
 境界の扱い:
@@ -160,12 +159,11 @@ public behavior は、downstream package が依存してよい挙動である。
 - span は `[start_byte, end_byte)` として扱う
 - `start_byte <= byte_offset < end_byte` の場合に含まれる
 - `byte_offset == end_byte` はその span には含まれない
-- EOF offset の扱いは `0.2.0` で test として固定する
+- EOF offset、つまり `byte_offset == len(source_bytes)` は `None` を返す
+- zero-width span は position lookup の対象に含めない
 
 未決定:
 
-- negative offset や source length より大きい offset を `None` にするか、`AstarsError` にするか
-- zero-width span に対して `node_at` が node を返すべきか
 - 同じ span length の候補が複数ある場合の tie-breaker
 
 ### Diagnostics Span
@@ -321,7 +319,7 @@ parser adapter は parser-specific object を Astars-owned structure に変換�
 2. `SourceText` internal model を追加する
 3. `SourceUnit` の source mapping 処理を `SourceText` 経由にする
 4. `SyntaxGraph.ast_at` / span boundary の仕様を test で固定する
-5. mapping failure の扱いを `None` / error / diagnostic のどれにするか決める
+5. mapping failure と invalid input の扱いを `None` / `AstarsError` / diagnostic として実装に反映する
 6. docs と README の source mapping 説明を更新する
 
 ## Acceptance Criteria
@@ -334,14 +332,20 @@ parser adapter は parser-specific object を Astars-owned structure に変換�
 - `unit.node_at(byte_offset)` の boundary behavior が test で固定されている
 - Unicode / encoding の source mapping test がある
 - zero-width span の扱いが diagnostics と position lookup で整理されている
+- invalid offset と別 `SourceUnit` 由来 node の扱いが `AstarsError` として test で固定されている
 - internal `SourceText` / `SyntaxGraph` / `SourceUnit` の責務が分かれている
+
+## Resolved Decisions
+
+`0.2.0` source mapping では、次の方針を採用する。
+
+- invalid offset は `AstarsError` とする
+- 別 `SourceUnit` 由来 node は `AstarsError` とする
+- EOF offset は `node_at` で `None` を返す
+- zero-width span は `node_at` の対象に含めない
 
 ## Open Questions
 
-- invalid offset は `None` か `AstarsError` か
-- 別 `SourceUnit` 由来 node は `None` か `AstarsError` か
-- `node_at` は EOF offset をどう扱うか
-- zero-width span は `node_at` の対象に含めるか
 - covering span で不連続な raw spans を表してよいか
 - human-readable 1-based location helper を public API に追加するか
 - `SourceText` を public API に含めるか、internal に留めるか
