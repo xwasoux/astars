@@ -177,6 +177,7 @@ astars/_version.py
 *.pyc
 *.pkl
 *.svg
+!*.drawio.svg
 *.env
 *Zone.Identifier
 .DS_Store

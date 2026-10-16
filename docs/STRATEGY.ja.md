@@ -256,6 +256,8 @@ Astars core engine(parse / normalize / map / query / edit)は Rust で実装す�
 
 これは、repository 群規模での速度とメモリ効率、および ML/研究者向け(Python)と agent 統合向け(TypeScript)の両方を同じ core から自然に満たすための判断である。tree-sitter や ast-grep が同種の構成(Rust/C core + 複数言語 binding)を採用している。
 
+repository 構成は、単一 repository(monorepo)に `astars-core`(Rust)、Python binding、Node binding をまとめる形を採用する。構成案の比較は [architecture/repo-structure.drawio.svg](architecture/repo-structure.drawio.svg) に残す。
+
 ## Trade-offs
 
 Astars は、すべての方向に広げるのではなく、engine としての価値を守るためにいくつかの trade-off を受け入れる。
@@ -470,5 +472,4 @@ Astars core は次のものではない。
 - 既存 repository を `astars-engine` に rename するべきか、新 repository を作って移植するべきか
 - LLM coding agent 向けの構造化編集 interface を見据えて、edit primitive の設計時期を `0.2.0` 以降に留めるか、前倒しするか
 - 既存 Python 実装(prototype)を、Rust core 移行までどの程度維持・並行開発するか
-- Rust core と各言語 binding(Python、TypeScript)を同一 repository で管理するか、`astars-core` / `astars-py` / `astars-node` のように分けるか
 - binding 層(PyO3 / maturin、napi-rs)の設計と spike をいつ着手するか

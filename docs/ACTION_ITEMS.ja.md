@@ -20,13 +20,14 @@
 - この方針変更に伴い、`feature/0.2-source-mapping` 上の Python source mapping 安定化作業は一時停止する
 - 現在の Python 実装(`SourceText` 導入まで含む)は、Rust 移行までの prototype / 設計検証として扱う
 - `0.1.1` の maintenance release は出さないことを決定した(Rust 移行に集中する)
+- repository 構成は単一 repo(monorepo)に決定した。`astars-core`(Rust)、Python binding、Node binding を同一 repository で管理する。比較検討は [architecture/repo-structure.drawio.svg](architecture/repo-structure.drawio.svg) 参照
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
 次に着手する作業は、Rust 移行の最初のステップを決めることである。
 
-- [ ] repository 構成を決める(単一 repo か、`astars-core` / `astars-py` / `astars-node` のように分けるか)
+- [ ] monorepo 内のディレクトリ構成を決める(例: `crates/astars-core`、`bindings/python`、`bindings/node`)
 - [ ] Rust + tree-sitter + PyO3 の最小 spike を作る(文字列を parse して node 数を返す程度)、toolchain を検証する
 - [ ] 同様に napi-rs 経由の Node binding の最小 spike を作る
 - [ ] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)
@@ -55,7 +56,7 @@
 
 次の判断は Rust 移行を具体的に進める前に行う。
 
-- [ ] repository を分けるか、単一 repo にするか
+- [ ] monorepo 内のディレクトリ構成(crates / bindings のレイアウト)
 - [ ] binding 層(PyO3 / maturin、napi-rs)の設計をいつ着手するか
 - [ ] 既存 Python 実装をどの程度の期間、どんな形で残すか
 
