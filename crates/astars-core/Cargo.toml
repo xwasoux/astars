@@ -1,0 +1,9 @@
+[package]
+name = "astars-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Astars core engine: parse / normalize / map / query / edit."
+
+[dependencies]

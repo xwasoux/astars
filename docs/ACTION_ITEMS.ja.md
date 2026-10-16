@@ -21,23 +21,23 @@
 - 現在の Python 実装(`SourceText` 導入まで含む)は、Rust 移行までの prototype / 設計検証として扱う
 - `0.1.1` の maintenance release は出さないことを決定した(Rust 移行に集中する)
 - repository 構成は単一 repo(monorepo)に決定した。`astars-core`(Rust)、Python binding、Node binding を同一 repository で管理する。比較検討は [architecture/repo-structure.drawio.svg](architecture/repo-structure.drawio.svg) 参照
+- monorepo 内のディレクトリ構成を実行した。`crates/astars-core`(単一 core crate)、`bindings/python`(`astars-py`)、`bindings/node`(`astars-node`)の Cargo workspace を作成し、`cargo build --workspace` / `cargo test --workspace` が通ることを確認済み(現時点は placeholder 実装)
+- 既存 Python 実装は `prototype-python/` に退避した(frozen reference。詳細は `prototype-python/README.md`)
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-次に着手する作業は、Rust 移行の最初のステップを決めることである。
+次に着手する作業は、placeholder になっている binding crate に実際のロジックを入れることである。
 
-- [ ] monorepo 内のディレクトリ構成を決める(例: `crates/astars-core`、`bindings/python`、`bindings/node`)
-- [ ] Rust + tree-sitter + PyO3 の最小 spike を作る(文字列を parse して node 数を返す程度)、toolchain を検証する
-- [ ] 同様に napi-rs 経由の Node binding の最小 spike を作る
+- [ ] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す程度の最小実装を作る
+- [ ] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
+- [ ] `bindings/node`(`astars-node`)に napi-rs を wiring し、Node から呼び出せる最小 spike を作る
 - [ ] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)
-- [ ] 現在の Python 実装(`feature/0.2-source-mapping` を含む)の扱いを決める(prototype として凍結 / 参照用に残す / archive する)
 
 完了条件:
 
 - Python と Node 両方の binding spike が動作する(parse できて、何らかの値が両言語から取得できる)
 - Rust core v0 scope が文書化されている
-- 既存 Python 実装の扱いが決まっている
 
 ## Decided: Release 0.1.1 は出さない
 
@@ -56,9 +56,8 @@
 
 次の判断は Rust 移行を具体的に進める前に行う。
 
-- [ ] monorepo 内のディレクトリ構成(crates / bindings のレイアウト)
-- [ ] binding 層(PyO3 / maturin、napi-rs)の設計をいつ着手するか
-- [ ] 既存 Python 実装をどの程度の期間、どんな形で残すか
+- [ ] `astars-core` を最初から複数 crate に割るか(現時点では単一 crate の方針)
+- [ ] pyproject.toml(maturin)/ package.json(napi-rs)をどのタイミングで `bindings/*` に追加するか(現時点は Cargo crate の skeleton のみ)
 
 設計レベルで決まっているが実装(Rust)にまだ反映していないもの(Python prototype で検証済み、`SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions 参照):
 

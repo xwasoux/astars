@@ -15,6 +15,14 @@ on, rather than a full analysis product by itself.
 
 ## Project Status
 
+**Astars is migrating its core engine to Rust**, with Python and TypeScript as
+binding-based consumers (`crates/astars-core` + `bindings/python` + `bindings/node`
+in this repository). See [`docs/STRATEGY.ja.md`](docs/STRATEGY.ja.md) for the
+rationale and [`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) for current
+status. The previous pure-Python implementation (published as `astars` 0.1.0 on
+PyPI) is kept as a frozen reference under [`prototype-python/`](prototype-python/)
+and is not under active development.
+
 Astars 0.1.0 provides the first v0 public API.
 
 The current v0 scope is intentionally small:
@@ -43,11 +51,12 @@ For the released package:
 pip install astars
 ```
 
-To try the development version from this repository:
+To try the previous pure-Python prototype from this repository (frozen reference,
+see Project Status above):
 
 ```bash
 git clone https://github.com/xwasoux/astars.git
-cd astars
+cd astars/prototype-python
 pip install -e .
 ```
 
@@ -134,13 +143,20 @@ belong in downstream packages such as `astars-metrics`, `astars-code-review`, or
 
 ## Development
 
-Run the test suite with:
+Rust workspace (`crates/astars-core`, `bindings/python`, `bindings/node`):
 
 ```bash
+cargo test --workspace
+```
+
+Python prototype (frozen reference, in `prototype-python/`):
+
+```bash
+cd prototype-python
 python -m pytest
 ```
 
-The v0 public API is covered by `tests/test_public_api.py`.
+The v0 public API is covered by `prototype-python/tests/test_public_api.py`.
 
 ## Design Documents
 

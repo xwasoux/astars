@@ -1,0 +1,13 @@
+[package]
+name = "astars-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "napi-rs bindings for astars-core (placeholder; napi-rs wiring lands with the binding spike)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+astars-core = { path = "../../crates/astars-core" }
