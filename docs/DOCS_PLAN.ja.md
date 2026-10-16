@@ -10,6 +10,7 @@
 
 想定する文書構成は次の通り。
 
+- `ACTION_ITEMS.ja.md`: 現在地、直近の作業順、完了条件
 - `STRATEGY.ja.md`: 上位方針、独自性、ecosystem、trade-off
 - `API_STRATEGY.ja.md`: public API、extension API、internal API の境界
 - `CONCEPTS.ja.md`: `RawSyntaxNode`, CST, AST, `SyntaxGraph`, source span の概念定義

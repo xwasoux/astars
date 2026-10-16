@@ -146,6 +146,7 @@ The v0 public API is covered by `tests/test_public_api.py`.
 
 The current strategy and architecture notes are maintained in Japanese:
 
+- [Current Action Items](docs/ACTION_ITEMS.ja.md)
 - [Strategy](docs/STRATEGY.ja.md)
 - [API Strategy](docs/API_STRATEGY.ja.md)
 - [Concepts](docs/CONCEPTS.ja.md)

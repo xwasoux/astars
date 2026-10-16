@@ -45,6 +45,8 @@ Python reference path が安定したら、second language を使って adapter 
 
 ## 近い戦略
 
+> **2026-10-16時点の注記**: [STRATEGY.ja.md](STRATEGY.ja.md) で core engine の実装言語を Rust とする方針を確定した。以下の `0.1.1` / `0.2.0` および Phase 1〜5 は Python 実装を前提に書かれており、Rust 移行を踏まえた再設計が必要である。直近の action item は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) を参照する。Python source mapping 安定化(`0.2.0` primary theme)は、再設計までのあいだ一時停止する。
+
 ### Release 0.1.1: Maintenance
 
 `0.1.1` は、`0.1.0` の public API を大きく広げず、release 品質と導入時の摩擦を下げるための patch release とする。

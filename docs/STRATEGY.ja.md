@@ -20,7 +20,14 @@ Astars は、分析結果が何を意味するかを判断しない。また、�
 
 短く言えば、Astars は次のためのエンジンである。
 
-> parser 固有の構文木を、分析に使いやすいプログラム構造へ変換する。
+> parser 固有の構文木を、分析に使いやすいプログラム構造へ変換し、その構造を自在に切り貼り（query / transform / edit）できるようにする。
+
+Astars の核は、AST を自在に操れることである。分析はその上に成り立つユースケースの一つであり、次の両方を含む。
+
+- 既存の AST を解析できること（static analysis、metrics、rule check など）
+- AST を切り貼りした結果どうなるかを解析できること（mutation、pruning、program variant 生成とその評価）
+
+ここで言う「解析」は、静的解析に限らない。ベクトル空間へのエンコード、LLM にソースや構造を読ませて得られる出力の評価なども含む。Astars は、LLM によるプログラミング言語の扱いを表層文字列の問題としてではなく、構造を保ったグラフデータの問題として扱えるようにすることを狙う。
 
 ## 想定利用者
 
@@ -49,6 +56,12 @@ repository mining、program reduction、code model evaluation、変換実験な�
 新しい言語 adapter や AST rule を追加する contributor。
 
 この層にとって重要なのは、parser 固有の処理を adapter に閉じ込め、Astars の core concept へどう写像するかを明確にできることである。
+
+### LLM Coding Agent / Agent Framework Builder
+
+LLM に構造化されたコード編集を行わせる agent や tool を作る人。
+
+この層にとって重要なのは、diff や行番号ではなく、名前や kind で編集対象を特定し、構文を壊さずに適用できる編集 primitive を、言語ごとに作り直さず使えることである。
 
 ## エコシステム戦略
 
@@ -81,6 +94,7 @@ Astars は、エコシステム全体の中核エンジンである。
 - 分析コードでは、木のノードと元ソースコードを行き来する必要がある。
 - コード変形では、抽象的な意味だけでなく正確な source span が必要になる。
 - 研究プロトタイプでは、parse、traverse、tree mapping の層を何度も作り直しがちである。
+- LLM coding agent は、diff や行番号ベースの編集形式では構文を壊しやすく、効率も悪い。名前や kind で対象を特定し、構造を保ったまま編集を適用できる基盤が求められている。
 
 Astars は、この共通基盤を提供するために存在する。各分析ツールが parser setup、tree normalization、source span mapping、traversal primitive を毎回自前で持たなくてもよい状態を目指す。
 
@@ -148,6 +162,21 @@ Astars は generic な source-aware edit primitive を提供してよいが、do
 
 たとえば、「選択された node に対応する source span を削除する」は Astars primitive でよい。一方で、「pruning 実験のためにどの statement を削除するか」は `astars-pruning` などの downstream package に属する。
 
+### LLM Coding Agent の編集形式
+
+例: 多くの AI coding agent が採用する diff / unified diff / search-replace 方式（[AST ベースの編集形式を比較した一例](https://geometricagi.github.io/2026/04/02/ast-edits.html)）
+
+AI coding agent の多くは、モデルに全文書き換え、search/replace、unified diff のいずれかで編集を出力させる。これらの形式は、モデルが既存コードを正確に書き写すことを前提にしており、大きなファイルほど行番号のずれや空白・引用の誤りで適用に失敗しやすい。
+
+Astars は、この編集形式そのものを提供するわけではないが、「名前や kind で対象を特定し、構造を保ったまま編集を適用する」という方式を、言語非依存の engine primitive として下支えできる。
+
+違いは次の通り。
+
+- diff ベースの編集形式は、モデルにテキストの転記を要求する。
+- Astars は、AST node を名前や kind で参照させ、source span を使って構造的に編集を適用させる。
+
+この方式は、特定の agent 実装や特定言語の parser に閉じず、`astars-*` ecosystem の中で再利用可能な primitive として提供できる。
+
 ### Source Markup / Exchange Format
 
 例: [srcML](https://www.srcml.org/about.html)
@@ -182,6 +211,8 @@ Astars のオリジナリティは、次の組み合わせにある。
 
 > Astars は、source-faithful で編集可能な program structure を、downstream analysis package のための軽量で analysis-neutral な engine として提供する。
 
+この組み合わせの具体的な入口の一つが、LLM coding agent に対して名前/kind ベースの構造化編集 interface を提供することである。編集そのものの独自性ではなく、編集結果を含めて source-faithful に解析し続けられることが Astars の価値である。
+
 つまり Astars は、source に戻れる構造編集を、完成された refactoring product、scanner、codemod framework、言語固有 toolkit としてではなく、再利用可能な engine primitive として提供する。
 
 重要な違いは次の通り。
@@ -215,9 +246,15 @@ Astars の価値は、単に tree を作ることではなく、分析対象の 
 
 Astars は、広い内部構造をそのまま public API として公開しない。downstream package が依存する surface を小さく保つことで、engine の進化と ecosystem の安定性を両立させる。
 
-### Python を Reference Path にする
+### Python を対象言語の Reference Path にする
 
-最初は Python を reference language として、parse、AST construction、source mapping、query、edit primitive の一連の流れを安定させる。その上で、他言語対応を architecture の検証対象として広げる。
+最初は Python を reference language として、parse、AST construction、source mapping、query、edit primitive の一連の流れを安定させる。その上で、他言語対応を architecture の検証対象として広げる。これは分析対象言語(何を parse するか)の話であり、Astars 自体の実装言語とは別の軸である。
+
+### Core Engine は Rust、Python/TS は binding 経由の consumer
+
+Astars core engine(parse / normalize / map / query / edit)は Rust で実装する。Python package と TypeScript package は、Rust core への binding(PyO3 / maturin、napi-rs 等)を通じて提供し、ロジックを言語ごとに重複させない。
+
+これは、repository 群規模での速度とメモリ効率、および ML/研究者向け(Python)と agent 統合向け(TypeScript)の両方を同じ core から自然に満たすための判断である。tree-sitter や ast-grep が同種の構成(Rust/C core + 複数言語 binding)を採用している。
 
 ## Trade-offs
 
@@ -393,6 +430,8 @@ Astars は、広く浅い分析機能を増やすよりも、少数の信頼で�
 
 これは Astars を長期的に Python-only にするという意味ではない。Python を使って、engine design、public API、tests、source mapping model を検証するという意味である。
 
+engine 自体の実装言語は Rust とする。現在の Python 実装は、その設計を検証する prototype として扱い、Rust core が安定した段階で、Python は core への binding package に移行する。
+
 初期 stable scope:
 
 - Python source を string と file から parse する
@@ -429,3 +468,7 @@ Astars core は次のものではない。
 - Python reference language としての最小 stable rule set は何か
 - stable ID について、edit や parse をまたいでどこまで保証するべきか
 - 既存 repository を `astars-engine` に rename するべきか、新 repository を作って移植するべきか
+- LLM coding agent 向けの構造化編集 interface を見据えて、edit primitive の設計時期を `0.2.0` 以降に留めるか、前倒しするか
+- 既存 Python 実装(prototype)を、Rust core 移行までどの程度維持・並行開発するか
+- Rust core と各言語 binding(Python、TypeScript)を同一 repository で管理するか、`astars-core` / `astars-py` / `astars-node` のように分けるか
+- binding 層(PyO3 / maturin、napi-rs)の設計と spike をいつ着手するか

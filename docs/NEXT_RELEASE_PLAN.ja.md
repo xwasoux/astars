@@ -4,6 +4,7 @@
 
 関連文書:
 
+- [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md)
 - [V0_PLAN.ja.md](V0_PLAN.ja.md)
 - [ROADMAP.ja.md](ROADMAP.ja.md)
 - [API_STRATEGY.ja.md](API_STRATEGY.ja.md)
