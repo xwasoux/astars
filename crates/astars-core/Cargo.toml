@@ -7,3 +7,5 @@ repository.workspace = true
 description = "Astars core engine: parse / normalize / map / query / edit."
 
 [dependencies]
+tree-sitter = "0.27.1"
+tree-sitter-python = "0.25.0"

@@ -23,13 +23,14 @@
 - repository 構成は単一 repo(monorepo)に決定した。`astars-core`(Rust)、Python binding、Node binding を同一 repository で管理する。比較検討は [architecture/repo-structure.drawio.svg](architecture/repo-structure.drawio.svg) 参照
 - monorepo 内のディレクトリ構成を実行した。`crates/astars-core`(単一 core crate)、`bindings/python`(`astars-py`)、`bindings/node`(`astars-node`)の Cargo workspace を作成し、`cargo build --workspace` / `cargo test --workspace` が通ることを確認済み(現時点は placeholder 実装)
 - 既存 Python 実装は `prototype-python/` に退避した(frozen reference。詳細は `prototype-python/README.md`)
+- `crates/astars-core` に tree-sitter 依存を追加し、`parse_str(source, lang) -> ParseResult` の最小実装を作った。設計は [architecture/core-parse-spike.drawio.svg](architecture/core-parse-spike.drawio.svg) のクラス図(自然言語 → モデル → コードの順で作成)に対応している。`cargo test -p astars-core` で実際に Python source を parse して node 数を数えるテストが通る。`bindings/python` / `bindings/node` の placeholder もこの実装を呼び出す形に更新済み
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-次に着手する作業は、placeholder になっている binding crate に実際のロジックを入れることである。
+次に着手する作業は、binding crate に実際の pyo3 / napi-rs wiring を入れることである。
 
-- [ ] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す程度の最小実装を作る
+- [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
 - [ ] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
 - [ ] `bindings/node`(`astars-node`)に napi-rs を wiring し、Node から呼び出せる最小 spike を作る
 - [ ] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)

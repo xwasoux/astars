@@ -1,11 +1,12 @@
 //! napi-rs bindings for `astars-core`.
 //!
-//! Placeholder: this crate currently just re-exports a stub to prove the
-//! workspace wiring (astars-node -> astars-core) builds. Actual napi-rs glue
-//! lands with the binding spike — see `docs/ACTION_ITEMS.ja.md`.
+//! Placeholder: this crate currently just proves the workspace wiring
+//! (astars-node -> astars-core) builds and can call the real `parse_str`
+//! entry point. Actual napi-rs glue lands with the binding spike — see
+//! `docs/ACTION_ITEMS.ja.md`.
 
-pub fn placeholder() -> &'static str {
-    astars_core::placeholder()
+pub fn placeholder() -> usize {
+    astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).node_count
 }
 
 #[cfg(test)]
@@ -14,6 +15,6 @@ mod tests {
 
     #[test]
     fn links_against_core() {
-        assert_eq!(placeholder(), "astars-core");
+        assert!(placeholder() > 0);
     }
 }
