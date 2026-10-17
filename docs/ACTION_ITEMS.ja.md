@@ -25,21 +25,22 @@
 - 既存 Python 実装は `prototype-python/` に退避した(frozen reference。詳細は `prototype-python/README.md`)
 - `crates/astars-core` に tree-sitter 依存を追加し、`parse_str(source, lang) -> ParseResult` の最小実装を作った。設計は [architecture/core-parse-spike.drawio.svg](architecture/core-parse-spike.drawio.svg) のクラス図(自然言語 → モデル → コードの順で作成)に対応している。`cargo test -p astars-core` で実際に Python source を parse して node 数を数えるテストが通る。`bindings/python` / `bindings/node` の placeholder もこの実装を呼び出す形に更新済み
 - `bindings/python`(crate `astars-py`)に pyo3 + maturin を wiring した。設計は [architecture/python-binding-spike.drawio.svg](architecture/python-binding-spike.drawio.svg) のクラス図に対応している。`astars-core` 自体は pyo3 に依存させず、`PyLang` / `PyParseResult` を変換用のミラー型として `bindings/python` 側に新設する形にした。モジュール名は `_astars`(将来の `import astars` は別パッケージとして薄くラップする想定)。`maturin develop` でビルド・インストールし、実際に Python から `_astars.parse_str(source, _astars.PyLang.Python)` を呼んで node_count が取れることを確認済み。`cargo test -p astars-py` も通る(pyo3 の `extension-module` feature は Cargo.toml のデフォルトではなく、`pyproject.toml` の `[tool.maturin] features` 経由でのみ有効化する形にして、`cargo test` のリンクエラーを回避した)
+- `bindings/node`(crate `astars-node`)に napi-rs を wiring した。設計は [architecture/node-binding-spike.drawio.svg](architecture/node-binding-spike.drawio.svg) のクラス図に対応している。Python binding と同じ形で、`JsLang` / `JsParseResult` を変換用のミラー型として新設(`JsParseResult` はメソッドを持たないため `#[napi(object)]` の plain object にした)。npm package 名は `@astars/native`。`npm run build:debug` でビルドし、実際に Node から `parseStr(source, JsLang.Python)` を呼んで `nodeCount` が取れることを確認済み(snake_case の `node_count` は napi-rs の規約で自動的に camelCase になる)。pyo3 の時と違い `cargo build` / `cargo test` は素直に通った。`index.js` / `index.d.ts` / `*.node` / `node_modules/` は生成物のため `.gitignore` に追加(`package.json` だけは既存の `*.json` 除外ルールを `!` で上書きして追跡対象にした)
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-次に着手する作業は、`bindings/node` に napi-rs wiring を入れることである。
+次に着手する作業は、Rust core の v0 scope を文書化することである(parse/normalize/map/query の binding spike が Python・Node 両方で揃ったため)。
 
 - [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
 - [x] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
-- [ ] `bindings/node`(`astars-node`)に napi-rs を wiring し、Node から呼び出せる最小 spike を作る
+- [x] `bindings/node`(`astars-node`)に napi-rs を wiring し、Node から呼び出せる最小 spike を作る
 - [ ] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)
 
 完了条件:
 
-- Python と Node 両方の binding spike が動作する(parse できて、何らかの値が両言語から取得できる)
-- Rust core v0 scope が文書化されている
+- [x] Python と Node 両方の binding spike が動作する(parse できて、何らかの値が両言語から取得できる)
+- [ ] Rust core v0 scope が文書化されている
 
 ## Decided: Release 0.1.1 は出さない
 

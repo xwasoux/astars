@@ -75,6 +75,12 @@ docs/_build/
 .pybuilder/
 target/
 
+# Node / napi-rs (bindings/node): regenerate via `npm install && npm run build:debug`
+node_modules/
+bindings/node/*.node
+bindings/node/index.js
+bindings/node/index.d.ts
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -181,3 +187,8 @@ astars/_version.py
 *.env
 *Zone.Identifier
 .DS_Store
+
+# the blanket *.json rule above (for old Python example/output artifacts)
+# would otherwise also catch these, which we do want to commit
+!bindings/node/package.json
+!bindings/node/package-lock.json

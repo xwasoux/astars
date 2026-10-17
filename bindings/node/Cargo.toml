@@ -11,3 +11,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 astars-core = { path = "../../crates/astars-core" }
+napi = "3.14.2"
+napi-derive = "3.6.12"
+
+[build-dependencies]
+napi-build = "2.6.0"
