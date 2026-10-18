@@ -9,12 +9,23 @@
 - [API_STRATEGY.ja.md](../API_STRATEGY.ja.md)
 - [CONCEPTS.ja.md](../CONCEPTS.ja.md)
 
-関連図(draw.io, VS Code の draw.io 拡張で編集可能):
+関連図(`.drawio.svg`。VS Code の draw.io 拡張で開くと編集できる):
 
-- [repo-structure.drawio.svg](repo-structure.drawio.svg): monorepo 構成の決定(crates + bindings を単一 repo で管理)
-- [core-parse-spike.drawio.svg](core-parse-spike.drawio.svg): `crates/astars-core` の最小 parse spike クラス図
-- [python-binding-spike.drawio.svg](python-binding-spike.drawio.svg): `bindings/python`(pyo3)のクラス図
-- [node-binding-spike.drawio.svg](node-binding-spike.drawio.svg): `bindings/node`(napi-rs)のクラス図
+#### repo-structure: monorepo 構成の決定
+
+![repo-structure](repo-structure.drawio.svg)
+
+#### core-parse-spike: `crates/astars-core` の最小 parse spike クラス図
+
+![core-parse-spike](core-parse-spike.drawio.svg)
+
+#### python-binding-spike: `bindings/python`(pyo3)のクラス図
+
+![python-binding-spike](python-binding-spike.drawio.svg)
+
+#### node-binding-spike: `bindings/node`(napi-rs)のクラス図
+
+![node-binding-spike](node-binding-spike.drawio.svg)
 
 > 2026-05 〜 09 にかけて書かれていた旧版は、Python 実装(`astars/` package)を前提にした目標アーキテクチャだった。`STRATEGY.ja.md` で core engine の実装言語を Rust にする方針へ転換したため、本書はその旧版を置き換える形で Rust 構成向けに書き直している。旧 Python 実装は `prototype-python/` に frozen reference として残っており、そこで検証済みの設計判断(source mapping の挙動、tie-breaker 方針など)は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions を通じて引き継ぐ。
 
