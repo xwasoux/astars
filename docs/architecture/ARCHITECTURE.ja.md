@@ -8,6 +8,7 @@
 - [ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 - [API_STRATEGY.ja.md](../API_STRATEGY.ja.md)
 - [CONCEPTS.ja.md](../CONCEPTS.ja.md)
+- [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md): 編集時のテキスト/木の追従モデル(v0 scope の AST node 構造設計の前提)
 
 関連図(`.drawio.svg`。VS Code の draw.io 拡張で開くと編集できる):
 
@@ -212,7 +213,7 @@ consumer(Python / Node)が依存してよいもの:
 
 ### 残っている作業(v0 到達に必要)
 
-- [ ] AST-like node 構造(`astars-core` 内に node 型を持ち、`ParseResult` が node 数ではなく root node を返すようにする)
+- [ ] AST-like node 構造(`astars-core` 内に node 型を持ち、`ParseResult` が node 数ではなく root node を返すようにする)。データ構造設計の前提は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) を参照
 - [ ] `SyntaxGraph` 相当(AST node ↔ raw span の対応)
 - [ ] `SourceSpan` / `SourceText` 相当(byte offset、half-open span、UTF-8 境界の扱い。`prototype-python` の `SOURCE_MAPPING_PLAN.ja.md` Resolved Decisions を踏襲する)
 - [ ] query API(`find(kind=...)`, `node_at(byte_offset)`)
