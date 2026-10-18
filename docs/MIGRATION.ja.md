@@ -6,7 +6,7 @@
 
 - [STRATEGY.ja.md](STRATEGY.ja.md)
 - [CONCEPTS.ja.md](CONCEPTS.ja.md)
-- [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
+- [ARCHITECTURE.ja.md](architecture/ARCHITECTURE.ja.md)
 - [API_STRATEGY.ja.md](API_STRATEGY.ja.md)
 - [ROADMAP.ja.md](ROADMAP.ja.md)
 

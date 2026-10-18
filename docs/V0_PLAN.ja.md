@@ -7,7 +7,7 @@
 - [STRATEGY.ja.md](STRATEGY.ja.md)
 - [API_STRATEGY.ja.md](API_STRATEGY.ja.md)
 - [CONCEPTS.ja.md](CONCEPTS.ja.md)
-- [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
+- [ARCHITECTURE.ja.md](architecture/ARCHITECTURE.ja.md)
 - [MIGRATION.ja.md](MIGRATION.ja.md)
 - [RELEASE_STRATEGY.ja.md](RELEASE_STRATEGY.ja.md)
 - [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)

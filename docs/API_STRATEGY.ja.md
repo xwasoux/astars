@@ -6,7 +6,7 @@
 
 - [STRATEGY.ja.md](STRATEGY.ja.md)
 - [CONCEPTS.ja.md](CONCEPTS.ja.md)
-- [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
+- [ARCHITECTURE.ja.md](architecture/ARCHITECTURE.ja.md)
 - [MIGRATION.ja.md](MIGRATION.ja.md)
 
 この文書は、軽量な program-structure engine としての Astars の API 戦略を定義する。目的は、downstream の `astars-*` package が安心して依存できる表面を作りつつ、parser 固有の詳細や application-specific な判断を public API から切り離すことである。

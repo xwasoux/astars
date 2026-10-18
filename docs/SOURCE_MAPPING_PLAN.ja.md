@@ -7,7 +7,7 @@
 - [STRATEGY.ja.md](STRATEGY.ja.md)
 - [CONCEPTS.ja.md](CONCEPTS.ja.md)
 - [API_STRATEGY.ja.md](API_STRATEGY.ja.md)
-- [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
+- [ARCHITECTURE.ja.md](architecture/ARCHITECTURE.ja.md)
 - [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)
 
 この文書は、`0.2.0` の主テーマである source mapping 安定化について、public behavior と internal responsibility を分けて整理する。

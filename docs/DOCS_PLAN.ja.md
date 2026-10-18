@@ -15,7 +15,7 @@
 - `API_STRATEGY.ja.md`: public API、extension API、internal API の境界
 - `CONCEPTS.ja.md`: `RawSyntaxNode`, CST, AST, `SyntaxGraph`, source span の概念定義
 - `USE_CASES.ja.md`: research / practical use cases の詳細
-- `ARCHITECTURE.ja.md`: module 構成、依存方向、data flow
+- `architecture/ARCHITECTURE.ja.md`: module 構成、依存方向、data flow(+ draw.io 図)
 - `SOURCE_MAPPING_PLAN.ja.md`: source mapping の public behavior と internal responsibility
 - `ROADMAP.ja.md`: 実装 phase、milestone、release plan
 - `MIGRATION.ja.md`: 旧 API から新 API への移行方針
