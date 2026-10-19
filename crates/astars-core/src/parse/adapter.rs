@@ -1,13 +1,17 @@
 //! `ParseAdapter`: the only place in this crate allowed to touch tree-sitter's
-//! parser API directly - see `docs/architecture/core-parse-spike.drawio.svg`.
+//! parser API directly - see `docs/architecture/syntax-tree-structure.drawio.svg`.
+//!
+//! Its job stops at "parse". Turning the resulting `tree_sitter::Tree` into
+//! our own arena (`SyntaxTree`) is `SyntaxTree`'s job, not this module's -
+//! that conversion needs access to `SyntaxTree`'s private fields.
 
-use super::raw_tree::RawTree;
+use crate::syntax::SyntaxTree;
 use crate::Lang;
 
 pub(crate) struct ParseAdapter;
 
 impl ParseAdapter {
-    pub(crate) fn parse(source: &str, lang: Lang) -> RawTree {
+    pub(crate) fn parse(source: &str, lang: Lang) -> SyntaxTree {
         let language = match lang {
             Lang::Python => tree_sitter_python::LANGUAGE.into(),
         };
@@ -22,6 +26,6 @@ impl ParseAdapter {
             .parse(&source_bytes, None)
             .expect("astars-core: tree-sitter returned no tree");
 
-        RawTree::new(tree, source_bytes)
+        SyntaxTree::from_tree_sitter(tree, source_bytes)
     }
 }

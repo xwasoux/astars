@@ -20,6 +20,10 @@
 
 ![core-parse-spike](core-parse-spike.drawio.svg)
 
+#### syntax-tree-structure: `SyntaxTree` / `SyntaxNode` データ構造のクラス図
+
+![syntax-tree-structure](syntax-tree-structure.drawio.svg)
+
 #### python-binding-spike: `bindings/python`(pyo3)のクラス図
 
 ![python-binding-spike](python-binding-spike.drawio.svg)
@@ -205,21 +209,22 @@ consumer(Python / Node)が依存してよいもの:
 
 旧 Python 実装の `0.1.0` 相当(`astars.parse_str` / `SourceUnit` / `SourceSpan` / `Diagnostic` / node interface / `walk` / `find` / `node_at` / `span_of` / `source_of`)に、Rust core として到達することを `v0` のゴールとする。
 
-### 現状(spike 段階)
+### 現状
 
-- [x] `parse_str(source, lang) -> ParseResult { lang, node_count }` — toolchain(tree-sitter + pyo3 + napi-rs)が繋がることの証明が目的で、**機能的にはまだ Python 0.1.0 と同等ではない**
-- [x] `astars-core` が binding-agnostic であることをコードレベルで保証(`mod parse;` が非 `pub`)
-- [x] Python / Node 両 binding から実際に呼び出せることを確認済み
+- [x] `parse_str(source, lang) -> ParseResult { lang, tree: SyntaxTree }` — toolchain(tree-sitter + pyo3 + napi-rs)が繋がることの証明が目的だった最初の spike から、実際に動く `SyntaxTree` / `SyntaxNode` 構造に進んだ
+- [x] `astars-core` が binding-agnostic であることをコードレベルで保証(`mod parse;` が非 `pub`。`SyntaxTree` は `tree_sitter::Tree` を private field に持つが、公開 API には一切出さない)
+- [x] AST-like node 構造([syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg) のクラス図、`NodeId` / `ByteSpan` / `SyntaxNode` / `SyntaxTree`)。v0 は tree-sitter の生 CST を 1:1 で使い、rule による正規化はまだ無い
+- [x] `SyntaxGraph` 相当は不要と判断した(v0 は 1 raw node = 1 `SyntaxNode` なので span を node に直接持たせられる。rule 正規化を足すときに再検討する。詳細は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md))
+- [x] query API(`walk`, `find(kind)`, `node_at(byte_offset)`, `span_of`, `source_of`)
+- [x] Python / Node 両 binding から実際に呼び出せることを確認済み(現状は `node_count` だけの最小追従。`SyntaxTree` 自体の binding 公開はこれから)
 
 ### 残っている作業(v0 到達に必要)
 
-- [ ] AST-like node 構造(`astars-core` 内に node 型を持ち、`ParseResult` が node 数ではなく root node を返すようにする)。データ構造設計の前提は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) を参照
-- [ ] `SyntaxGraph` 相当(AST node ↔ raw span の対応)
-- [ ] `SourceSpan` / `SourceText` 相当(byte offset、half-open span、UTF-8 境界の扱い。`prototype-python` の `SOURCE_MAPPING_PLAN.ja.md` Resolved Decisions を踏襲する)
-- [ ] query API(`find(kind=...)`, `node_at(byte_offset)`)
+- [ ] `SyntaxTree` を Python / Node binding にどう公開するか設計する(node を handle/index で渡す形を想定)
+- [ ] `SourceSpan` / `SourceText` の Unicode/encoding 境界の扱い(`prototype-python` の `SOURCE_MAPPING_PLAN.ja.md` Resolved Decisions を踏襲する)
 - [ ] `parse_bytes` / `parse_file` の追加(現状 `parse_str` のみ)
 - [ ] Diagnostics(parser recovery の `ERROR` / `MISSING` node を扱う)
-- [ ] 各 binding crate に、上記を mirror する型を追加する
+- [ ] 各 binding crate に、`SyntaxTree` を mirror する型を追加する
 
 ### Non-Goals(v0 では扱わない)
 

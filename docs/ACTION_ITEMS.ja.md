@@ -28,24 +28,27 @@
 - `bindings/node`(crate `astars-node`)に napi-rs を wiring した。設計は [architecture/node-binding-spike.drawio.svg](architecture/node-binding-spike.drawio.svg) のクラス図に対応している。Python binding と同じ形で、`JsLang` / `JsParseResult` を変換用のミラー型として新設(`JsParseResult` はメソッドを持たないため `#[napi(object)]` の plain object にした)。npm package 名は `@astars/native`。`npm run build:debug` でビルドし、実際に Node から `parseStr(source, JsLang.Python)` を呼んで `nodeCount` が取れることを確認済み(snake_case の `node_count` は napi-rs の規約で自動的に camelCase になる)。pyo3 の時と違い `cargo build` / `cargo test` は素直に通った。`index.js` / `index.d.ts` / `*.node` / `node_modules/` は生成物のため `.gitignore` に追加(`package.json` だけは既存の `*.json` 除外ルールを `!` で上書きして追跡対象にした)
 - `docs/ARCHITECTURE.ja.md` を `docs/architecture/ARCHITECTURE.ja.md` に移動し、中身を旧 Python package layout 前提から Rust 構成(`crates/astars-core` + `bindings/*`)向けに書き直した。4枚の draw.io 図(`repo-structure` / `core-parse-spike` / `python-binding-spike` / `node-binding-spike`)への参照と、Rust core の v0 scope(現状の spike と、v0 到達に残っている作業の一覧)を記載済み。他の doc(`README.md`, `V0_PLAN.ja.md`, `SOURCE_MAPPING_PLAN.ja.md`, `MIGRATION.ja.md`, `API_STRATEGY.ja.md`, `DOCS_PLAN.ja.md`)のリンクも新しいパスに修正済み
 - AST node 構造の設計に着手する前に、「編集でテキストと木がどう追従するか」を [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) に整理した。要点: (1) 4シナリオ(LLM構造化編集・変異生成パイプライン・embedding・可視化)から操作リストを導出、(2) tree-sitter の `Tree::edit` + `parse_with(..., Some(&old_tree))` + `changed_ranges` に任せられる部分と、テキスト格納(Piece Table 想定)・名前/kindアドレス指定・系譜追跡は自前実装が必要な部分を分担整理、(3) 運用規約として「編集は常に `tree.edit()` 経由で行い独立 re-parse を避ける」を決定
+- `SyntaxTree` / `SyntaxNode` を実装した。設計は [architecture/syntax-tree-structure.drawio.svg](architecture/syntax-tree-structure.drawio.svg) のクラス図に対応している。`NodeId`(arena index)で node を値として持ち、v0 は 1 raw node = 1 `SyntaxNode`(rule 正規化なし)なので span は node に直接持たせた(`SyntaxGraph` 相当は不要)。`SyntaxTree` は `tree_sitter::Tree` を private field として保持し、将来の incremental edit(`EDIT_MODEL.ja.md`)に備えている。`walk` / `find(kind)` / `node_at(offset)` / `span_of` / `source_of` を実装し、EOF 境界・span/source 往復をテストで確認済み(`cargo test -p astars-core` で7件pass)。設計からの逸脱: `kind`/`field_name` は `&'static str` の予定だったが `tree_sitter::Node::kind()` が実際には tree の lifetime に紐づくため `String` に変更した。`ParseResult.node_count` は `tree: SyntaxTree` に置き換え、`bindings/python` / `bindings/node` は `tree.walk().count()` で計算する形に最小限追従(`SyntaxTree` を binding にどう公開するかは別ラウンド)
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-次に着手する作業は、[architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) の Open Questions(AST node の arena 設計、Piece Table の実装方針、系譜追跡の置き場所)を踏まえて、AST node のデータ構造を設計することである。
+次に着手する作業は、`SyntaxTree` を Python / Node binding にどう公開するかを設計することである(現状は `node_count` だけの最小追従)。
 
 - [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
 - [x] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
 - [x] `bindings/node`(`astars-node`)に napi-rs を wiring し、Node から呼び出せる最小 spike を作る
 - [x] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)
 - [x] 編集時のテキスト/木の追従モデルを整理する(`EDIT_MODEL.ja.md`)
-- [ ] AST node のデータ構造を設計する(`EDIT_MODEL.ja.md` の Open Questions を踏まえる)
-- [ ] v0 scope の残作業(`SyntaxGraph`、`SourceSpan`/query API)に着手する
+- [x] AST node のデータ構造を設計・実装する(`SyntaxTree` / `SyntaxNode` / `NodeId` / `ByteSpan`)
+- [ ] `SyntaxTree` を Python / Node binding に公開する設計をする
+- [ ] v0 scope の残作業(`SourceText` の Unicode/encoding 境界、`parse_bytes` / `parse_file`、Diagnostics)に着手する
 
 完了条件:
 
 - [x] Python と Node 両方の binding spike が動作する(parse できて、何らかの値が両言語から取得できる)
 - [x] Rust core v0 scope が文書化されている
+- [x] `walk` / `find` / `node_at` / `span_of` / `source_of` が `astars-core` に実装されている
 
 ## Decided: Release 0.1.1 は出さない
 

@@ -46,9 +46,13 @@ pub struct PyParseResult {
 
 impl From<astars_core::ParseResult> for PyParseResult {
     fn from(result: astars_core::ParseResult) -> Self {
+        // node_count is a stand-in for exposing the full SyntaxTree across
+        // the FFI boundary, which is its own design round (see
+        // docs/architecture/syntax-tree-structure.drawio.svg's notes).
+        let node_count = result.tree.walk().count();
         Self {
             lang: result.lang.into(),
-            node_count: result.node_count,
+            node_count,
         }
     }
 }

@@ -50,12 +50,16 @@ pub struct JsParseResult {
 
 impl From<astars_core::ParseResult> for JsParseResult {
     fn from(result: astars_core::ParseResult) -> Self {
+        // node_count is a stand-in for exposing the full SyntaxTree across
+        // the FFI boundary, which is its own design round (see
+        // docs/architecture/syntax-tree-structure.drawio.svg's notes).
+        let node_count = result.tree.walk().count();
         Self {
             lang: result.lang.into(),
             // tree-sitter node counts fit comfortably in u32; napi has no
             // native usize, and JS numbers can't losslessly hold full usize
             // range anyway.
-            node_count: result.node_count as u32,
+            node_count: node_count as u32,
         }
     }
 }
