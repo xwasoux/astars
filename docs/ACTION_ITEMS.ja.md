@@ -53,8 +53,9 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 - [x] 操作12(node を値として FFI 境界を越えられる制約)
 - [ ] 操作9(派生系譜の追跡 — variant が元のどの node から来たかを追跡する台帳。シナリオB で必須)
 - [ ] 操作10(名前/kind ベースのアドレス指定 — 「名前 `hello` の関数」を一発で引く。シナリオA の核心)
+- [ ] 操作13(独立な2木の構造的 diff。2026-10-23 新規追加、計画中。v1 は textual diff + 既存の `tree.edit()` 機構で代替し、v2 で GumTree による node matching に置き換える方針。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照)
 
-土台(1-8, 11-12)はできているが、この強みを強みたらしめる 9・10 が手つかずのまま。
+土台(1-8, 11-12)はできているが、この強みを強みたらしめる 9・10・13 が手つかずのまま。
 
 ### 2. 複数ランタイムでの再利用性
 
@@ -70,7 +71,7 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 ### 4. ecosystem 中核としての軽量 engine
 
 - [ ] downstream package の実装例が1つもない(`astars-metrics` 等は `STRATEGY.ja.md` 上の構想のみ)
-- [ ] シナリオB(変異生成パイプライン)・C(embedding/LLM評価)・D(可視化)をエンドツーエンドで動かす実例がない
+- [ ] シナリオB(変異生成パイプライン)・C(embedding/LLM評価)・D(可視化)・E(構造的 diff、`astars-code-review` の土台)をエンドツーエンドで動かす実例がない
 
 ### その他(強みと直接紐づかないが明示的に見送っているもの)
 

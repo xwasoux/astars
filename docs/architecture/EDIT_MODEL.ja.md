@@ -1,6 +1,6 @@
 # Astars Edit Model(Rust core)
 
-ステータス: 編集 primitive(v1、操作7・8・11)は実装済み。操作9・10(系譜追跡、名前/kind アドレス指定)は Not Now(具体的な消費者待ち)
+ステータス: 編集 primitive(v1、操作7・8・11)は実装済み。操作9・10(系譜追跡、名前/kind アドレス指定)は Not Now(具体的な消費者待ち)。操作13(構造的 diff)は計画中 — v1(textual diff + 既存の `tree.edit()` 機構)を暫定実装し、v2(GumTree による node matching)を最終形態とする
 
 関連文書:
 
@@ -53,6 +53,14 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 1. 木全体(または大きな部分木)を丸ごと辿って描画する
 2. 編集前後で「このnodeは変わっていないか」をハイライトに使う
 
+### シナリオE: 構造的 diff(`astars-code-review`、2026-10-23 追加)
+
+git の前後コミットのような、`tree.edit()` 系譜で繋がっていない独立な2つの source(同じファイルの2バージョン)を比較し、node 単位で何が変わったかを知りたい。操作7・8(編集 primitive)が前提にしている「自分で `replace()` した1本の編集系譜」ではなく、すでに存在する2つの source を外から渡されて比較する点がシナリオA〜Dと異なる。
+
+1. 2つの source からそれぞれ木を作る(すでに独立に parse 済みでもよい)
+2. node 単位で added / removed / unchanged を得る
+3. 将来的には、rename / move / modify のような、より意味のある対応付け(GumTree のような tree edit distance アルゴリズムによる node matching)まで区別したい。v1 時点では、そこまでは見送る(下記「操作13」参照)
+
 ## 操作リスト
 
 シナリオから導出した、Astars core が支えるべき操作。実装状況は 2026-10-23 時点(`ACTION_ITEMS.ja.md` の「強みの実現状況」と対応)。
@@ -76,6 +84,12 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 
 9. **派生系譜の追跡**: この variant node は元のどの node から来たか(シナリオB で必須)
 10. **名前/kind ベースのアドレス指定**: byte offset とは別の軸で node を引く(シナリオA の核心。現状は `find(kind)` で候補を絞ってから利用者側で名前を確認する形に留まる)
+
+### 計画中(2026-10-23 追加。v1/v2 の二段階で進める)
+
+13. **独立な2木の構造的 diff**(シナリオE): `tree.edit()` 系譜で繋がっていない2つの source を比較し、node 単位で added/removed/unchanged を得る
+    - **v1(暫定)**: 2つの source のテキスト diff(Myers diff)を `InputEdit` の列に変換し、`tree.edit()` + `changed_ranges()` という既存の編集 primitive の仕組みに乗せて実現する。node の対応付けは行わず、`changed_ranges` との byte span overlap だけで判定する(overlap すれば旧木側は removed、新木側は added。重ならなければ unchanged)。rename/move/modify の区別はできない
+    - **v2(最終形態)**: GumTree のような tree edit distance アルゴリズムで node 同士を対応付け、modified/moved/renamed まで区別できるようにする。v1 は、この v2 に置き換えるまでの代替実装と位置づける
 
 ### 制約(機能要求ではなく、全操作に効いてくる前提)
 
@@ -159,3 +173,24 @@ AWS が Kiro IDE 向けに AST ベースの構造化編集(`insert_node` / `repl
 ## Next Step
 
 上記の決定を元に、クラス図(`EditResult` と `SyntaxTree` の関係)とシーケンス図(`replace` 呼び出し時の処理の流れ: source 書き換え → `tree.edit()` → re-parse → `changed_ranges` 取得)を作り、実装に進む。
+
+## 構造的 diff(操作13)の設計(2026-10-23、計画中)
+
+### きっかけ
+
+AST を自在に操れることの延長として、「同じファイルの独立な2バージョン(git の前後コミットなど)を構造的に比較したい」という要望が出た。`replace`/`unchanged_in` は自分で `tree.edit()` した1本の編集系譜の中でしか機能しないため、外から渡された2つの独立な source を比較する用途(シナリオE、`astars-code-review` の土台)には対応できない。
+
+最終的には GumTree のような tree edit distance アルゴリズムで node を対応付け、rename/move/modify まで区別できる状態を目指す。ただし GumTree 相当の実装は規模が大きいため、それまでの代替として、既存の編集 primitive の仕組みに乗せた簡易版を v1 として先に用意する。
+
+### 決定事項(現時点の方針。実装時に確定)
+
+1. **2つの source のテキスト diff を `InputEdit` の列に変換し、既存の `tree.edit()` + `changed_ranges()` の仕組みに乗せる**: `replace` が単一 span の書き換えから `InputEdit` を1つ作るのに対し、diff は複数 hunk から複数の `InputEdit` を作る。tree-sitter への適用順序(末尾側から適用しないと後続の byte offset がずれる)に注意が必要
+2. **テキスト diff 自体は自前実装しない**: Myers diff を手で書くのは避け、`similar` のような実績のある軽量 crate に任せる
+3. **戻り値は `EditResult` と同じ形にする**: `tree`(新しい木)+ private な `changed_ranges` を持つ型にし、`unchanged_in` をそのまま(あるいはごく小さな追加で)再利用できるようにする
+4. **node 単位の分類は byte span の overlap 判定のみ**: `changed_ranges` と重ならなければ `Unchanged`。旧木側で重なれば `Removed`、新木側で重なれば `Added` とする。node 同士の対応付け(「この関数は名前を変えて残っている」等)は行わない — それは v2(GumTree)の仕事
+
+### v1 のスコープ外(v2 = GumTree 導入まで見送り)
+
+- GumTree のような tree edit distance による node matching
+- `Modified` / `Moved` / `Renamed` の区別(v1 は `Added`/`Removed`/`Unchanged` の3値のみ)
+- 複数言語をまたいだ diff(v0 scope と同じく Python のみ)
