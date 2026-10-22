@@ -3,11 +3,11 @@
 //! This crate is the only place allowed to depend on napi-rs - `astars-core`
 //! itself stays binding-agnostic (see `docs/STRATEGY.ja.md`). `JsLang`,
 //! `JsSyntaxTree`, `JsNodeInfo`, `JsEditResult` and `JsDiagnostic` exist
-//! purely to mirror `astars_core` types across the FFI boundary; see
-//! `docs/architecture/node-tree-binding.drawio.svg` for the class diagram
-//! this module implements (the edit primitive and diagnostics additions are
-//! documented in `docs/architecture/EDIT_MODEL.ja.md` and
-//! `docs/SOURCE_MAPPING_PLAN.ja.md` rather than a new diagram).
+//! purely to mirror `astars_core` types across the FFI boundary; see the
+//! "bindings/node" class diagram in `docs/architecture/ARCHITECTURE.ja.md`
+//! for the design this module implements (the edit primitive and
+//! diagnostics behavior are explained in `docs/architecture/EDIT_MODEL.ja.md`
+//! and `docs/SOURCE_MAPPING_PLAN.ja.md`).
 //!
 //! Node side: `import { parseStr, JsLang } from '@astars/native'` (the
 //! eventual `astars` / `@astars/core` npm package is a separate, thin

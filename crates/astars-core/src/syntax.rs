@@ -1,7 +1,7 @@
 //! `SyntaxTree` / `SyntaxNode`: the v0 program-structure type.
 //!
-//! See `docs/architecture/syntax-tree-structure.drawio.svg` for the class
-//! diagram this module implements, and `docs/architecture/EDIT_MODEL.ja.md`
+//! See the "astars-core" class diagram in `docs/architecture/ARCHITECTURE.ja.md`
+//! for the design this module implements, and `docs/architecture/EDIT_MODEL.ja.md`
 //! for why the design looks the way it does.
 //!
 //! v0 note: a `SyntaxNode` is tree-sitter's raw CST node, 1:1 - there is no
@@ -38,8 +38,8 @@ impl NodeId {
     /// Inverse of `as_u32`. A `NodeId` built this way is only meaningful for
     /// the `SyntaxTree` it came from; passing an out-of-range value makes
     /// `SyntaxTree` methods panic (bindings catch this as an exception - see
-    /// `docs/architecture/python-tree-binding.drawio.svg` /
-    /// `node-tree-binding.drawio.svg`).
+    /// the "bindings/python" / "bindings/node" class diagrams in
+    /// `docs/architecture/ARCHITECTURE.ja.md`).
     pub fn from_u32(value: u32) -> Self {
         NodeId(value)
     }

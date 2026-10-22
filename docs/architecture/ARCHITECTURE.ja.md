@@ -10,35 +10,251 @@
 - [CONCEPTS.ja.md](../CONCEPTS.ja.md)
 - [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md): 編集時のテキスト/木の追従モデル(v0 scope の AST node 構造設計の前提)
 
-関連図(`.drawio.svg`。VS Code の draw.io 拡張で開くと編集できる):
+関連図:
 
-#### repo-structure: monorepo 構成の決定
+#### repo-structure: monorepo 構成の決定(`.drawio.svg`。VS Code の draw.io 拡張で開くと編集できる)
 
 ![repo-structure](repo-structure.drawio.svg)
 
-#### core-parse-spike: `crates/astars-core` の最小 parse spike クラス図
+#### astars-core: `SyntaxTree` / `SyntaxNode` データ構造 + 編集 primitive + Diagnostics のクラス図
 
-![core-parse-spike](core-parse-spike.drawio.svg)
+> 2026-10-22、クラス図の表現を draw.io(`.drawio.svg`)から Mermaid(`classDiagram`、Markdown に直接埋め込み)に切り替えた。理由: (1) コード変更のたびに図を更新するコストが draw.io だと高く、実際に編集 primitive と `parse_bytes`/`parse_file`/Diagnostics の2ラウンド分、図の更新が漏れていた、(2) draw.io の VS Code 拡張でファイルを開くだけで background-color 等のメタデータ差分が git 上に出てしまう、(3) この文書は既に Mermaid の flowchart(Layer Overview)を使っており、レンダリング経路は実績がある。`repo-structure`(意思決定の記録図で、クラス図ではない)はそのまま draw.io に残す。
 
-#### syntax-tree-structure: `SyntaxTree` / `SyntaxNode` データ構造のクラス図
+```mermaid
+classDiagram
+    class Lang {
+        <<enum>>
+        Python
+    }
+    class AstarsError {
+        <<enum>>
+        Io
+    }
+    class Severity {
+        <<enum>>
+        Error
+    }
+    class ByteSpan {
+        <<value type>>
+        +start_byte usize
+        +end_byte usize
+    }
+    class NodeId {
+        <<value type>>
+        +as_u32() u32
+        +from_u32(u32) NodeId
+    }
+    class Diagnostic {
+        +severity Severity
+        +message String
+        +span ByteSpan
+    }
+    class SyntaxNode {
+        <<internal>>
+        kind String
+        field_name Option~String~
+        span ByteSpan
+        parent Option~NodeId~
+        children Vec~NodeId~
+    }
+    class SyntaxTree {
+        -nodes Vec~SyntaxNode~
+        -source Vec~u8~
+        -raw TreeSitterTree
+        -lang Lang
+        +root NodeId
+        +walk() Iterator~NodeId~
+        +find(kind) Vec~NodeId~
+        +node_at(offset) Option~NodeId~
+        +span_of(id) ByteSpan
+        +source_of(id) String
+        +root() NodeId
+        +lang() Lang
+        +kind_of(id) String
+        +field_name_of(id) Option~String~
+        +parent_of(id) Option~NodeId~
+        +children_of(id) Vec~NodeId~
+        +replace(target, new_text) EditResult
+        +unchanged_in(id, edit) bool
+        +diagnostics() Vec~Diagnostic~
+    }
+    class EditResult {
+        +tree SyntaxTree
+        -changed_ranges Vec~ByteSpan~
+    }
+    class ParseAdapter {
+        <<internal>>
+        +parse(source, lang) SyntaxTree
+    }
+    class ParseResult {
+        +lang Lang
+        +tree SyntaxTree
+    }
+    class astars_core {
+        <<module>>
+        +parse_str(source, lang) ParseResult
+        +parse_bytes(source, lang) ParseResult
+        +parse_file(path, lang) ParseResult
+    }
 
-![syntax-tree-structure](syntax-tree-structure.drawio.svg)
+    astars_core ..> ParseAdapter
+    astars_core ..> ParseResult
+    astars_core ..> AstarsError
+    ParseAdapter ..> SyntaxTree
+    ParseResult *-- SyntaxTree
+    ParseResult --> Lang
+    SyntaxTree *-- SyntaxNode
+    SyntaxTree --> NodeId
+    SyntaxNode --> NodeId
+    SyntaxNode --> ByteSpan
+    SyntaxTree ..> EditResult
+    EditResult *-- SyntaxTree
+    EditResult --> ByteSpan
+    SyntaxTree ..> Diagnostic
+    Diagnostic --> Severity
+    Diagnostic --> ByteSpan
 
-#### python-binding-spike: `bindings/python`(pyo3)のクラス図
+    note for SyntaxTree "parser-isolated design bet: SyntaxNode は tree-sitter 型を一切持たない。raw(tree-sitter の Tree。図では TreeSitterTree と表記)は private field で edit primitive の incremental re-parse 専用。kind/field_name は当初 static str の予定だったが tree-sitter の Node.kind() が tree の lifetime に紐づくため String に変更(逸脱)。source_of は lossy UTF-8 decode(parse_bytes が非UTF-8を受け付けるため)。"
+    note for EditResult "changed_ranges は private。unchanged_in は NodeId 等価ではなく byte span の overlap で判定する(新旧 tree は別 arena)。"
+    note for Diagnostic "span は non-optional(v0 の発生源が tree-sitter の ERROR/MISSING node のみのため)。Severity は v0 では Error の1 variant のみ。"
+    note for AstarsError "Io variant が std の io error を保持する(parse_file の読み込み失敗)。"
+    note for ParseAdapter "引数の型は source: byte列, lang: Lang。実際のシグネチャは parse(source: &[u8], lang: Lang) -> SyntaxTree。"
+    note for astars_core "実際のシグネチャ: parse_str(source: &str, lang) -> ParseResult / parse_bytes(source: &[u8], lang) -> ParseResult / parse_file(path: &Path, lang) -> Result(ParseResult, AstarsError)。"
+```
 
-![python-binding-spike](python-binding-spike.drawio.svg)
+#### bindings/python(crate `astars-py`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
 
-#### node-binding-spike: `bindings/node`(napi-rs)のクラス図
+```mermaid
+classDiagram
+    class PyLang {
+        <<pyclass>>
+        Python
+    }
+    class PyNodeInfo {
+        <<pyclass>>
+        +id int
+        +kind str
+        +field_name str or None
+        +start_byte int
+        +end_byte int
+        +parent int or None
+        +children list~int~
+    }
+    class PyDiagnostic {
+        <<pyclass>>
+        +severity str
+        +message str
+        +span IntPair
+    }
+    class PySyntaxTree {
+        <<pyclass>>
+        -inner CoreSyntaxTree
+        +root_id() int
+        +walk() list~int~
+        +find(kind) list~int~
+        +node_at(offset) int or None
+        +span_of(id) IntPair
+        +source_of(id) str
+        +node_info(id) PyNodeInfo
+        +dump(id) list~PyNodeInfo~
+        +replace(target, new_text) PyEditResult
+        +unchanged_in(id, edit) bool
+        +diagnostics() list~PyDiagnostic~
+    }
+    class PyEditResult {
+        <<pyclass>>
+        -inner CoreEditResult
+        +tree PySyntaxTree
+    }
+    class PyParseResult {
+        <<pyclass>>
+        +lang PyLang
+        +tree PySyntaxTree
+    }
+    class astars_module {
+        <<pymodule _astars>>
+        +parse_str(source, lang) PyParseResult
+        +parse_bytes(source, lang) PyParseResult
+        +parse_file(path, lang) PyParseResult
+    }
 
-![node-binding-spike](node-binding-spike.drawio.svg)
+    astars_module ..> PyParseResult
+    PyParseResult o-- PySyntaxTree
+    PyParseResult --> PyLang
+    PySyntaxTree ..> PyEditResult
+    PyEditResult o-- PySyntaxTree
+    PySyntaxTree ..> PyDiagnostic
+    PySyntaxTree ..> PyNodeInfo
 
-#### python-tree-binding: `bindings/python` の `SyntaxTree` 公開のクラス図
+    note for astars_module "module名は _astars。parse_file の I/O 失敗は OSError(AstarsError の Io variant を文字列化して PyErr に変換)。"
+    note for PySyntaxTree "inner は astars_core の SyntaxTree を private field として保持する薄い wrapper(図では CoreSyntaxTree と表記)。PyLang は pyclass(eq, eq_int)、PyNodeInfo/PyDiagnostic/PyParseResult は pyclass(get_all)。"
+    note for PyEditResult "inner は astars_core の EditResult を丸ごと保持する(図では CoreEditResult と表記。changed_ranges が private で tree だけに分解できないため)。tree getter は Py new で新しい PySyntaxTree を作って返す。"
+```
 
-![python-tree-binding](python-tree-binding.drawio.svg)
+#### bindings/node(crate `astars-node`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
 
-#### node-tree-binding: `bindings/node` の `SyntaxTree` 公開のクラス図(`JsParseResult` 廃止の逸脱あり)
+```mermaid
+classDiagram
+    class JsLang {
+        <<napi enum>>
+        Python
+    }
+    class JsNodeInfo {
+        <<napi object>>
+        +id number
+        +kind string
+        +fieldName string or null
+        +startByte number
+        +endByte number
+        +parent number or null
+        +children number array
+    }
+    class JsDiagnostic {
+        <<napi object>>
+        +severity string
+        +message string
+        +span number array
+    }
+    class JsSyntaxTree {
+        <<napi class>>
+        -inner CoreSyntaxTree
+        -lang JsLang
+        +lang() JsLang
+        +rootId() number
+        +walk() number array
+        +find(kind) number array
+        +nodeAt(offset) number or null
+        +spanOf(id) number array
+        +sourceOf(id) string
+        +nodeInfo(id) JsNodeInfo
+        +dump(id) JsNodeInfo array
+        +replace(target, newText) JsEditResult
+        +unchangedIn(id, edit) boolean
+        +diagnostics() JsDiagnostic array
+    }
+    class JsEditResult {
+        <<napi class>>
+        -inner CoreEditResult
+        +tree() JsSyntaxTree
+    }
+    class astars_native {
+        <<napi module>>
+        +parseStr(source, lang) JsSyntaxTree
+        +parseBytes(source, lang) JsSyntaxTree
+        +parseFile(path, lang) JsSyntaxTree
+    }
 
-![node-tree-binding](node-tree-binding.drawio.svg)
+    astars_native ..> JsSyntaxTree
+    JsSyntaxTree --> JsLang
+    JsSyntaxTree ..> JsEditResult
+    JsEditResult ..> JsSyntaxTree
+    JsSyntaxTree ..> JsDiagnostic
+    JsSyntaxTree ..> JsNodeInfo
+
+    note for astars_native "npm package名は @astars/native。設計からの逸脱: JsParseResult は存在しない。napi-rs の napi(object) は全fieldに双方向変換を要求し napi class を直接持てないため、lang を JsSyntaxTree 自身の field(getter)に畳み込み、parseStr/parseBytes/parseFile は JsSyntaxTree を直接返す。parseFile の I/O 失敗は throw(napi Error from_reason)。"
+    note for JsSyntaxTree "inner は astars_core の SyntaxTree を private field として保持する薄い wrapper(図では CoreSyntaxTree と表記)。メソッド名/フィールド名は napi-rs の規約で camelCase になる。"
+    note for JsEditResult "inner は astars_core の EditResult を丸ごと保持する(Python 側と同じ理由。図では CoreEditResult と表記)。tree() getter は SyntaxTree を clone して返す。"
+```
 
 > 2026-05 〜 09 にかけて書かれていた旧版は、Python 実装(`astars/` package)を前提にした目標アーキテクチャだった。`STRATEGY.ja.md` で core engine の実装言語を Rust にする方針へ転換したため、本書はその旧版を置き換える形で Rust 構成向けに書き直している。旧 Python 実装は `prototype-python/` に frozen reference として残っており、そこで検証済みの設計判断(source mapping の挙動、tie-breaker 方針など)は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions を通じて引き継ぐ。
 
@@ -221,10 +437,10 @@ consumer(Python / Node)が依存してよいもの:
 
 - [x] `parse_str(source, lang) -> ParseResult { lang, tree: SyntaxTree }` — toolchain(tree-sitter + pyo3 + napi-rs)が繋がることの証明が目的だった最初の spike から、実際に動く `SyntaxTree` / `SyntaxNode` 構造に進んだ
 - [x] `astars-core` が binding-agnostic であることをコードレベルで保証(`mod parse;` が非 `pub`。`SyntaxTree` は `tree_sitter::Tree` を private field に持つが、公開 API には一切出さない)
-- [x] AST-like node 構造([syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg) のクラス図、`NodeId` / `ByteSpan` / `SyntaxNode` / `SyntaxTree`)。v0 は tree-sitter の生 CST を 1:1 で使い、rule による正規化はまだ無い
+- [x] AST-like node 構造(上の「astars-core」クラス図、`NodeId` / `ByteSpan` / `SyntaxNode` / `SyntaxTree`)。v0 は tree-sitter の生 CST を 1:1 で使い、rule による正規化はまだ無い
 - [x] `SyntaxGraph` 相当は不要と判断した(v0 は 1 raw node = 1 `SyntaxNode` なので span を node に直接持たせられる。rule 正規化を足すときに再検討する。詳細は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md))
 - [x] query API(`walk`, `find(kind)`, `node_at(byte_offset)`, `span_of`, `source_of`)
-- [x] `SyntaxTree` を Python / Node 両 binding に公開し、実際に動作確認済み([python-tree-binding.drawio.svg](python-tree-binding.drawio.svg) / [node-tree-binding.drawio.svg](node-tree-binding.drawio.svg)。`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)
+- [x] `SyntaxTree` を Python / Node 両 binding に公開し、実際に動作確認済み(上の「bindings/python」/「bindings/node」クラス図。`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)
 
 ### 残っている作業(v0 到達に必要)
 

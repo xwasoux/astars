@@ -2,9 +2,9 @@
 //!
 //! This crate's public surface is `Lang`, `ParseResult`, `SyntaxTree` (+
 //! `NodeId`, `ByteSpan`, `EditResult`, `Diagnostic`, `Severity`), and
-//! `parse_str` / `parse_bytes` / `parse_file` - see
-//! `docs/architecture/syntax-tree-structure.drawio.svg` for the class diagram
-//! this module implements, and `docs/STRATEGY.ja.md` for the design bets it
+//! `parse_str` / `parse_bytes` / `parse_file` - see the "astars-core" class
+//! diagram in `docs/architecture/ARCHITECTURE.ja.md` for the design this
+//! module implements, and `docs/STRATEGY.ja.md` for the design bets it
 //! must honor: parser-isolated (no tree_sitter types in the public surface),
 //! binding-agnostic (no pyo3/napi-rs dependency in this crate).
 

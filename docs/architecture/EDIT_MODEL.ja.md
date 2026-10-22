@@ -9,7 +9,7 @@
 - [../CONCEPTS.ja.md](../CONCEPTS.ja.md)(旧 Python 実装前提。`Edit Primitive` セクションの具体化が本書)
 - [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 
-この文書は、v0 scope の AST node 構造(`SyntaxTree`/`SyntaxNode`)に着手する前に、「木構造のノード操作と、それに追従するテキスト編集をどう実現するか」を整理したものである。データ構造そのものは [syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg) の設計で実装済み。本書の後半(「編集 primitive(v1)の設計」節)は、そのデータ構造を前提に、操作7・8(編集 primitive と編集前後比較)を実装するための設計を追記したものである。
+この文書は、v0 scope の AST node 構造(`SyntaxTree`/`SyntaxNode`)に着手する前に、「木構造のノード操作と、それに追従するテキスト編集をどう実現するか」を整理したものである。データ構造そのものは [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) の「astars-core」クラス図の設計で実装済み。本書の後半(「編集 primitive(v1)の設計」節)は、そのデータ構造を前提に、操作7・8(編集 primitive と編集前後比較)を実装するための設計を追記したものである。
 
 ## 背景: なぜこの整理が要るか
 
@@ -111,11 +111,11 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 
 ## データ構造設計の Open Questions(解決済み)
 
-- ~~AST node を arena(index 参照)で持つか~~ → arena + `NodeId(u32)` で決定・実装済み([syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg))
+- ~~AST node を arena(index 参照)で持つか~~ → arena + `NodeId(u32)` で決定・実装済み([ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) の「astars-core」クラス図)
 - Piece Table の具体的な実装 → v1 編集 primitive では見送り(下記)。導入時期は再検討
 - 操作9(系譜追跡)の台帳をどこに持つか → 未着手。v1 編集 primitive のスコープ外(下記)
 - 操作10(名前/kind アドレス指定)を tree-sitter query 言語の上に作るか、自前 traversal で作るか → 未着手
-- 操作11(部分木の一括 export)の具体的な API 形状 → `dump(id) -> Vec<NodeInfo>` 形式で実装済み([python-tree-binding.drawio.svg](python-tree-binding.drawio.svg) / [node-tree-binding.drawio.svg](node-tree-binding.drawio.svg))
+- 操作11(部分木の一括 export)の具体的な API 形状 → `dump(id) -> Vec<NodeInfo>` 形式で実装済み([ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) の「bindings/python」/「bindings/node」クラス図)
 
 ## 編集 primitive(v1)の設計
 

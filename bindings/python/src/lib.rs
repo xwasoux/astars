@@ -4,10 +4,10 @@
 //! itself stays binding-agnostic (see `docs/STRATEGY.ja.md`). `PyLang`,
 //! `PyParseResult`, `PySyntaxTree`, `PyNodeInfo`, `PyEditResult` and
 //! `PyDiagnostic` exist purely to mirror `astars_core` types across the FFI
-//! boundary; see `docs/architecture/python-tree-binding.drawio.svg` for the
-//! class diagram this module implements (the edit primitive and diagnostics
-//! additions are documented in `docs/architecture/EDIT_MODEL.ja.md` and
-//! `docs/SOURCE_MAPPING_PLAN.ja.md` rather than a new diagram).
+//! boundary; see the "bindings/python" class diagram in
+//! `docs/architecture/ARCHITECTURE.ja.md` for the design this module
+//! implements (the edit primitive and diagnostics behavior are explained in
+//! `docs/architecture/EDIT_MODEL.ja.md` and `docs/SOURCE_MAPPING_PLAN.ja.md`).
 //!
 //! Python side: `import _astars` (the eventual `import astars` is a separate,
 //! pure-Python package that will wrap this native module - not built yet).
