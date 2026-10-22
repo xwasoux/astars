@@ -11,14 +11,16 @@ use crate::Lang;
 pub(crate) struct ParseAdapter;
 
 impl ParseAdapter {
-    pub(crate) fn parse(source: &str, lang: Lang) -> SyntaxTree {
+    /// Parses raw bytes directly - `source` need not be valid UTF-8 (that is
+    /// `parse_bytes`'s whole point; `parse_str` just hands in `str::as_bytes()`,
+    /// which always is).
+    pub(crate) fn parse(source: &[u8], lang: Lang) -> SyntaxTree {
         let mut parser = parser_for(lang);
-        let source_bytes = source.as_bytes().to_vec();
         let tree = parser
-            .parse(&source_bytes, None)
+            .parse(source, None)
             .expect("astars-core: tree-sitter returned no tree");
 
-        SyntaxTree::from_tree_sitter(lang, tree, source_bytes)
+        SyntaxTree::from_tree_sitter(lang, tree, source.to_vec())
     }
 }
 

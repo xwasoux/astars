@@ -2,10 +2,12 @@
 //!
 //! This crate is the only place allowed to depend on napi-rs - `astars-core`
 //! itself stays binding-agnostic (see `docs/STRATEGY.ja.md`). `JsLang`,
-//! `JsParseResult`, `JsSyntaxTree` and `JsNodeInfo` exist purely to mirror
-//! `astars_core` types across the FFI boundary; see
+//! `JsSyntaxTree`, `JsNodeInfo`, `JsEditResult` and `JsDiagnostic` exist
+//! purely to mirror `astars_core` types across the FFI boundary; see
 //! `docs/architecture/node-tree-binding.drawio.svg` for the class diagram
-//! this module implements.
+//! this module implements (the edit primitive and diagnostics additions are
+//! documented in `docs/architecture/EDIT_MODEL.ja.md` and
+//! `docs/SOURCE_MAPPING_PLAN.ja.md` rather than a new diagram).
 //!
 //! Node side: `import { parseStr, JsLang } from '@astars/native'` (the
 //! eventual `astars` / `@astars/core` npm package is a separate, thin
@@ -132,7 +134,7 @@ impl JsSyntaxTree {
 
     #[napi]
     pub fn source_of(&self, id: u32) -> String {
-        self.inner.source_of(NodeId::from_u32(id)).to_string()
+        self.inner.source_of(NodeId::from_u32(id))
     }
 
     /// One node's detail - a single, targeted FFI round trip.
@@ -174,6 +176,14 @@ impl JsSyntaxTree {
     pub fn unchanged_in(&self, id: u32, edit: &JsEditResult) -> bool {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
     }
+
+    /// Parser-recovery diagnostics for this tree (`ERROR` / `MISSING` nodes
+    /// tree-sitter produced while parsing), in preorder. See
+    /// `docs/SOURCE_MAPPING_PLAN.ja.md` ("Diagnostics Span").
+    #[napi]
+    pub fn diagnostics(&self) -> Vec<JsDiagnostic> {
+        self.inner.diagnostics().into_iter().map(JsDiagnostic::from_core).collect()
+    }
 }
 
 /// Mirrors `astars_core::EditResult`. Holds the whole core `EditResult` (not
@@ -198,6 +208,29 @@ impl JsEditResult {
     }
 }
 
+/// Mirrors `astars_core::Diagnostic`. `severity` is flattened to a plain
+/// string (`"error"`) since `astars_core::Severity` has a single variant in
+/// v0 - not worth a dedicated JS enum yet.
+#[napi(object)]
+#[derive(Debug, Clone)]
+pub struct JsDiagnostic {
+    pub severity: String,
+    pub message: String,
+    pub span: Vec<u32>,
+}
+
+impl JsDiagnostic {
+    fn from_core(diagnostic: astars_core::Diagnostic) -> Self {
+        Self {
+            severity: match diagnostic.severity {
+                astars_core::Severity::Error => "error".to_string(),
+            },
+            message: diagnostic.message,
+            span: vec![diagnostic.span.start_byte as u32, diagnostic.span.end_byte as u32],
+        }
+    }
+}
+
 /// `parseStr(source, lang) -> JsSyntaxTree`: converts `JsLang` to
 /// `astars_core::Lang`, calls `astars_core::parse_str`, converts the result
 /// (`astars_core::ParseResult { lang, tree }`) into a `JsSyntaxTree` that
@@ -206,6 +239,23 @@ impl JsEditResult {
 pub fn parse_str(source: String, lang: JsLang) -> JsSyntaxTree {
     let result = astars_core::parse_str(&source, lang.into());
     JsSyntaxTree::new(result.lang.into(), result.tree)
+}
+
+/// `parseBytes(source, lang) -> JsSyntaxTree`: like `parseStr`, but `source`
+/// (a Node `Buffer`) need not be valid UTF-8 (see `astars_core::parse_bytes`).
+#[napi]
+pub fn parse_bytes(source: napi::bindgen_prelude::Buffer, lang: JsLang) -> JsSyntaxTree {
+    let result = astars_core::parse_bytes(&source, lang.into());
+    JsSyntaxTree::new(result.lang.into(), result.tree)
+}
+
+/// `parseFile(path, lang) -> JsSyntaxTree`: reads `path` and parses it (see
+/// `astars_core::parse_file`). Throws on an I/O failure.
+#[napi]
+pub fn parse_file(path: String, lang: JsLang) -> napi::Result<JsSyntaxTree> {
+    let result = astars_core::parse_file(std::path::Path::new(&path), lang.into())
+        .map_err(|err| napi::Error::from_reason(err.to_string()))?;
+    Ok(JsSyntaxTree::new(result.lang.into(), result.tree))
 }
 
 #[cfg(test)]
@@ -256,5 +306,24 @@ mod tests {
         let edit = js_tree.replace(first, "x = 99".to_string());
         assert!(!js_tree.unchanged_in(first, &edit));
         assert!(js_tree.unchanged_in(second, &edit));
+    }
+
+    #[test]
+    fn diagnostics_reports_syntax_errors() {
+        let core_tree = astars_core::parse_str("def (:\n", astars_core::Lang::Python).tree;
+        let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
+        let diagnostics = js_tree.diagnostics();
+        assert!(!diagnostics.is_empty());
+        assert!(diagnostics.iter().all(|d| d.severity == "error"));
+    }
+
+    #[test]
+    fn parse_bytes_mirrors_parse_str_node_count() {
+        let from_bytes = JsSyntaxTree::new(
+            JsLang::Python,
+            astars_core::parse_bytes(b"x = 1\n", astars_core::Lang::Python).tree,
+        );
+        let from_str = JsSyntaxTree::new(JsLang::Python, astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
+        assert_eq!(from_bytes.walk().len(), from_str.walk().len());
     }
 }

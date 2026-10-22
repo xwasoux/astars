@@ -2,10 +2,12 @@
 //!
 //! This crate is the only place allowed to depend on pyo3 - `astars-core`
 //! itself stays binding-agnostic (see `docs/STRATEGY.ja.md`). `PyLang`,
-//! `PyParseResult`, `PySyntaxTree` and `PyNodeInfo` exist purely to mirror
-//! `astars_core` types across the FFI boundary; see
-//! `docs/architecture/python-tree-binding.drawio.svg` for the class diagram
-//! this module implements.
+//! `PyParseResult`, `PySyntaxTree`, `PyNodeInfo`, `PyEditResult` and
+//! `PyDiagnostic` exist purely to mirror `astars_core` types across the FFI
+//! boundary; see `docs/architecture/python-tree-binding.drawio.svg` for the
+//! class diagram this module implements (the edit primitive and diagnostics
+//! additions are documented in `docs/architecture/EDIT_MODEL.ja.md` and
+//! `docs/SOURCE_MAPPING_PLAN.ja.md` rather than a new diagram).
 //!
 //! Python side: `import _astars` (the eventual `import astars` is a separate,
 //! pure-Python package that will wrap this native module - not built yet).
@@ -108,7 +110,7 @@ impl PySyntaxTree {
     }
 
     fn source_of(&self, id: u32) -> String {
-        self.inner.source_of(NodeId::from_u32(id)).to_string()
+        self.inner.source_of(NodeId::from_u32(id))
     }
 
     /// One node's detail - a single, targeted FFI round trip.
@@ -150,6 +152,13 @@ impl PySyntaxTree {
     fn unchanged_in(&self, id: u32, edit: &PyEditResult) -> bool {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
     }
+
+    /// Parser-recovery diagnostics for this tree (`ERROR` / `MISSING` nodes
+    /// tree-sitter produced while parsing), in preorder. See
+    /// `docs/SOURCE_MAPPING_PLAN.ja.md` ("Diagnostics Span").
+    fn diagnostics(&self) -> Vec<PyDiagnostic> {
+        self.inner.diagnostics().into_iter().map(PyDiagnostic::from_core).collect()
+    }
 }
 
 /// Mirrors `astars_core::EditResult`. Holds the whole core `EditResult`
@@ -169,6 +178,29 @@ impl PyEditResult {
     #[getter]
     fn tree(&self, py: Python<'_>) -> PyResult<Py<PySyntaxTree>> {
         Py::new(py, PySyntaxTree::from(self.inner.tree.clone()))
+    }
+}
+
+/// Mirrors `astars_core::Diagnostic`. `severity` is flattened to a plain
+/// string (`"error"`) since `astars_core::Severity` has a single variant in
+/// v0 - not worth a dedicated Python enum yet.
+#[pyclass(get_all)]
+#[derive(Debug, Clone)]
+pub struct PyDiagnostic {
+    pub severity: String,
+    pub message: String,
+    pub span: (usize, usize),
+}
+
+impl PyDiagnostic {
+    fn from_core(diagnostic: astars_core::Diagnostic) -> Self {
+        Self {
+            severity: match diagnostic.severity {
+                astars_core::Severity::Error => "error".to_string(),
+            },
+            message: diagnostic.message,
+            span: (diagnostic.span.start_byte, diagnostic.span.end_byte),
+        }
     }
 }
 
@@ -204,6 +236,23 @@ fn parse_str(py: Python<'_>, source: &str, lang: PyRef<'_, PyLang>) -> PyResult<
     PyParseResult::from_core(py, result)
 }
 
+/// `_astars.parse_bytes(source, lang) -> ParseResult`: like `parse_str`, but
+/// `source` need not be valid UTF-8 (see `astars_core::parse_bytes`).
+#[pyfunction]
+fn parse_bytes(py: Python<'_>, source: &[u8], lang: PyRef<'_, PyLang>) -> PyResult<PyParseResult> {
+    let result = astars_core::parse_bytes(source, (*lang).into());
+    PyParseResult::from_core(py, result)
+}
+
+/// `_astars.parse_file(path, lang) -> ParseResult`: reads `path` and parses
+/// it (see `astars_core::parse_file`). Raises `OSError` on an I/O failure.
+#[pyfunction]
+fn parse_file(py: Python<'_>, path: &str, lang: PyRef<'_, PyLang>) -> PyResult<PyParseResult> {
+    let result = astars_core::parse_file(std::path::Path::new(path), (*lang).into())
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyOSError, _>(err.to_string()))?;
+    PyParseResult::from_core(py, result)
+}
+
 #[pymodule]
 fn _astars(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyLang>()?;
@@ -211,7 +260,10 @@ fn _astars(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySyntaxTree>()?;
     m.add_class::<PyNodeInfo>()?;
     m.add_class::<PyEditResult>()?;
+    m.add_class::<PyDiagnostic>()?;
     m.add_function(wrap_pyfunction!(parse_str, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_file, m)?)?;
     Ok(())
 }
 
@@ -264,5 +316,21 @@ mod tests {
         let edit = py_tree.replace(first, "x = 99");
         assert!(!py_tree.unchanged_in(first, &edit));
         assert!(py_tree.unchanged_in(second, &edit));
+    }
+
+    #[test]
+    fn diagnostics_reports_syntax_errors() {
+        let core_tree = astars_core::parse_str("def (:\n", astars_core::Lang::Python).tree;
+        let py_tree = PySyntaxTree::from(core_tree);
+        let diagnostics = py_tree.diagnostics();
+        assert!(!diagnostics.is_empty());
+        assert!(diagnostics.iter().all(|d| d.severity == "error"));
+    }
+
+    #[test]
+    fn parse_bytes_mirrors_parse_str_node_count() {
+        let from_bytes = PySyntaxTree::from(astars_core::parse_bytes(b"x = 1\n", astars_core::Lang::Python).tree);
+        let from_str = PySyntaxTree::from(astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
+        assert_eq!(from_bytes.walk().len(), from_str.walk().len());
     }
 }

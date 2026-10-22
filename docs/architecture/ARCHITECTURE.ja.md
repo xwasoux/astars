@@ -228,12 +228,14 @@ consumer(Python / Node)が依存してよいもの:
 
 ### 残っている作業(v0 到達に必要)
 
-優先順位を変更した(2026-10-22、`ACTION_ITEMS.ja.md` 参照): AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進める。
+優先順位を変更した(2026-10-22、`ACTION_ITEMS.ja.md` 参照): AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進めた。以降のアイテムもすべて完了した。
 
-- [ ] **編集 primitive(v1)**: `SyntaxTree::replace` + `EditResult` + `unchanged_in`(設計は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」)。Python / Node 両方に公開するところまでを一区切りとする
-- [ ] `SourceSpan` / `SourceText` の Unicode/encoding 境界の扱い(`prototype-python` の `SOURCE_MAPPING_PLAN.ja.md` Resolved Decisions を踏襲する)
-- [ ] `parse_bytes` / `parse_file` の追加(現状 `parse_str` のみ)
-- [ ] Diagnostics(parser recovery の `ERROR` / `MISSING` node を扱う)
+- [x] **編集 primitive(v1)**: `SyntaxTree::replace` + `EditResult` + `unchanged_in`(設計は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」)。Python / Node 両方に公開済み
+- [x] `parse_bytes` / `parse_file` の追加(`ParseAdapter::parse` が `&[u8]` を受ける形に変更し、`parse_str` はその薄いラッパーにした。`parse_file` は `AstarsError::Io` を返す。非 UTF-8 encoding サポートは追加していない — 下記 Non-Goals 参照)
+- [x] `SyntaxTree::source_of` の Unicode 境界対応(`&str` + `.expect()` で panic する実装から、`String::from_utf8_lossy` で U+FFFD 置換する実装に変更。byte offset 自体は常に正しいまま)
+- [x] Diagnostics(`astars_core::Diagnostic` / `Severity` を新設し、`SyntaxTree::diagnostics()` で tree-sitter の `ERROR` / `MISSING` node を公開)
+
+Python / Node 両 binding にも、`parse_bytes` / `parse_file` / `diagnostics()` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
 
 ### Non-Goals(v0 では扱わない)
 
@@ -241,6 +243,8 @@ consumer(Python / Node)が依存してよいもの:
 - CST / `RawSyntaxNode` の stable public API 化
 - semantic analysis
 - Python 以外の対象言語
+- `parse_file` の非 UTF-8 encoding サポート(Shift-JIS 等)。`encoding_rs` のような追加依存が必要になるため v0 では見送った
+- `SourceSpan` の `start_point`/`end_point`(line/column)の public API 化。`replace` 内部の `point_at` helper はあるが非公開のまま
 
 ## Open Questions
 

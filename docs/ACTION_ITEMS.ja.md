@@ -32,22 +32,18 @@
 - `SyntaxTree` を Python / Node binding に公開した。設計は [architecture/python-tree-binding.drawio.svg](architecture/python-tree-binding.drawio.svg) / [architecture/node-tree-binding.drawio.svg](architecture/node-tree-binding.drawio.svg) のクラス図に対応している。`astars-core` に `root()` / `kind_of()` / `field_name_of()` / `parent_of()` / `children_of()` という granular accessor を追加し(`NodeId::as_u32`/`from_u32` で FFI 境界を越える)、`PySyntaxTree`/`JsSyntaxTree`(wrapper)と `PyNodeInfo`/`JsNodeInfo`(DTO)を実装。`walk`/`find` は Rust 側の遅延 iterator を binding 層で `Vec` に collect してから返す(node 1個ごとに FFI を跨がない、`EDIT_MODEL.ja.md` 操作11)。`node_info`(1件)と `dump`(部分木一括)を両方用意。Python/Node 両方で実際に動作確認済み(`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)。**設計からの逸脱(Node 側のみ)**: 図では `JsParseResult`(`#[napi(object)]`)が `tree: JsSyntaxTree` を持つ想定だったが、napi-rs の `#[napi(object)]` は全 field に双方向変換を要求し `#[napi]` class を直接持てないため、`JsParseResult` を廃止して `lang` を `JsSyntaxTree` 自身の field(getter)に畳み込み、`parseStr()` が `JsSyntaxTree` を直接返す形にした。Python 側は `Py<PySyntaxTree>` でこの問題を素直に解決できたため、Python/Node で非対称な形になっている
 - AWS が Kiro IDE 向けに AST ベースの構造化編集(名前/kind セレクタ + insert/replace/delete)を公開し、LLM 呼び出し数・token 数・エラー率で実測効果を示した(2026-10-21、[参考](https://aws.amazon.com/jp/blogs/news/surgical-precision-with-ast/))。シナリオA の仮説の裏付けにはなるが、Kiro は特定 IDE に閉じた内製機能であり、(1) 複数ランタイムでの再利用性、(2) 編集を「結果を解析する loop の一部」として扱う点、は Astars 固有の強みとして残る。これを踏まえ、v0 scope の残作業(`parse_bytes`/`parse_file`/Diagnostics)より**編集 primitive(操作7)+ 編集前後比較(操作8)を Python/Node 両方に公開することを優先する**よう再優先順位付けした。設計方針は [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」に記載
 - 編集 primitive(v1)を Python / Node binding に公開した。`PySyntaxTree`/`JsSyntaxTree` に `replace(target, new_text)` / `unchanged_in(id, edit)` を追加し、`PyEditResult`/`JsEditResult`(`tree` getter)を新設(いずれも `astars_core::EditResult` を丸ごと保持し、`changed_ranges` が private のため `tree` だけに分解できない形)。Python は実装済みの `Py<PySyntaxTree>` パターン、Node は既存の `JsParseResult` 廃止パターンと同じ理由(napi-rs の `#[napi(object)]` が `#[napi]` class field を持てない)で `JsEditResult` も通常の `#[napi]` class にした。両言語で `cargo test` / `clippy -- -D warnings` が通り、`maturin develop` / `npm run build:debug` 後に実際に `x = 1\ny = 2` を `x = 99\ny = 2` に replace して `unchanged_in` の真偽が意図通り(編集対象: false / 無関係な node: true)になることを確認済み
+- v0 scope の残作業(`parse_bytes` / `parse_file` / Diagnostics / Unicode・encoding 境界)を実装し、Python / Node 両 binding に公開した。詳細:
+  - `astars-core::parse_bytes(source: &[u8], lang)` を追加。`ParseAdapter::parse` が `&str` ではなく `&[u8]` を受け取る形に変更し、`parse_str` はその薄いラッパーにした。`source` は valid UTF-8 でなくてもよい(tree-sitter はバイト列をそのまま parse できる)
+  - `astars-core::parse_file(path: &Path, lang) -> Result<ParseResult, AstarsError>` を追加(`AstarsError::Io` のみ)。**設計からの逸脱**: Python prototype の `parse_file(..., encoding=...)` と異なり encoding パラメータは無い。v0 はファイルの bytes をそのまま `parse_bytes` に渡すだけ(UTF-8 前提、lossy)で、非 UTF-8 encoding(Shift-JIS 等)のサポートは "Not Now" に回した(`encoding_rs` のような追加依存を今は入れない判断)
+  - `SyntaxTree::source_of` を `&str`(`.expect()` で UTF-8 境界外だと panic)から `String`(`String::from_utf8_lossy(...).into_owned()`)に変更した。`parse_bytes` が非 UTF-8 bytes を受け付けるようになったため、無効な byte 列を読んでも panic せず U+FFFD に置換される(`docs/SOURCE_MAPPING_PLAN.ja.md` の `errors="replace"` 方針を踏襲)。byte offset(`span_of` 等)自体は常に元 bytes 基準のままで、影響を受けるのは `source_of` の表示文字列のみ
+  - `astars-core::Diagnostic` { severity: `Severity`(v0 は `Error` 1 variant のみ), message, span: `ByteSpan` } を新設し、`SyntaxTree::diagnostics() -> Vec<Diagnostic>` を実装。tree-sitter の `is_error()` / `is_missing()` node を raw tree から直接 traverse して組み立てる。**設計からの逸脱**: Python prototype の `Diagnostic.span: Optional[SourceSpan]` と異なり、v0 の `span` は non-optional(diagnostics の発生源が tree-sitter の recovery node に限られるため、常に実 span を持つ)
+  - `SourceSpan` の `start_point`/`end_point`(line/column)は v0 では追加しなかった(`replace` 内部の `point_at` helper はあるが非公開のまま)。公開 API としての point 情報は「次の判断が必要なもの」として `Decisions Needed` に積む
+  - Python: `_astars.parse_bytes(source: bytes, lang)` / `_astars.parse_file(path: str, lang)`(I/O 失敗は `OSError`)/ `PySyntaxTree.diagnostics() -> list[PyDiagnostic]`(`severity` は `"error"` という plain string)を追加。Node: `parseBytes(source: Buffer, lang)` / `parseFile(path: string, lang)`(I/O 失敗は throw)/ `JsSyntaxTree.diagnostics() -> JsDiagnostic[]` を追加。両言語で `cargo test` / `clippy -- -D warnings` が通り、`maturin develop` / `npm run build:debug` 後に実際に non-UTF-8 bytes の parse・存在しないファイルの parse_file・構文エラーのある source の diagnostics を確認済み
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-編集 primitive(v1)は `astars-core` 実装・Python/Node binding 公開ともに完了した。次に着手するのは v0 scope の残作業である。
-
-- [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
-- [x] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
-- [x] `bindings/node`(`astars-node`)に napi-rs を wiring し、Node から呼び出せる最小 spike を作る
-- [x] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)
-- [x] 編集時のテキスト/木の追従モデルを整理する(`EDIT_MODEL.ja.md`)
-- [x] AST node のデータ構造を設計・実装する(`SyntaxTree` / `SyntaxNode` / `NodeId` / `ByteSpan`)
-- [x] `SyntaxTree` を Python / Node binding に公開する(`PySyntaxTree`/`PyNodeInfo`、`JsSyntaxTree`/`JsNodeInfo`)
-- [x] 編集 primitive(v1): `SyntaxTree::replace` + `EditResult` + `unchanged_in` を `astars-core` に実装する(`cargo test -p astars-core` で10件pass。`replace`での削除時、`source_of(root())`が先頭の空行を含まないtree-sitter-pythonの挙動を発見しテストで明文化した)
-- [x] 編集 primitive を Python / Node binding に公開する(`PyEditResult`/`JsEditResult` + `replace`/`unchanged_in`。両言語の smoke test で動作確認済み)
-- [ ] v0 scope の残作業(`SourceText` の Unicode/encoding 境界、`parse_bytes` / `parse_file`、Diagnostics)— 編集 primitive の後に着手する
+v0 scope(旧 Python `0.1.0` 相当の query API + 編集 primitive v1)は一通り実装・公開が完了した。次に着手する作業は未着手。
 
 完了条件:
 
@@ -57,6 +53,7 @@
 - [x] `SyntaxTree` が Python / Node 両方の binding から実際に使える(`node_info` / `dump` を含む)
 - [x] `replace` + `unchanged_in` が `astars-core` で動作する(編集して、意図した箇所以外が変わっていないことを確認できる)
 - [x] `replace` + `unchanged_in` が Python / Node binding からも使える
+- [x] `parse_bytes` / `parse_file` / `diagnostics` が `astars-core` に実装され、Python / Node binding からも使える
 
 ## Decided: Release 0.1.1 は出さない
 
@@ -77,6 +74,8 @@
 
 - [ ] `astars-core` を最初から複数 crate に割るか(現時点では単一 crate の方針)
 - [ ] pyproject.toml(maturin)/ package.json(napi-rs)をどのタイミングで `bindings/*` に追加するか(現時点は Cargo crate の skeleton のみ)
+- [ ] `SourceSpan` に `start_point`/`end_point`(line/column)を公開 API として持たせるか、持たせる場合は byte column 以外(Unicode code point、grapheme cluster、1-based)をどこまでサポートするか
+- [ ] `parse_file` に非 UTF-8 encoding サポート(`encoding_rs` 等)を追加するタイミング
 
 設計レベルで決まっているが実装(Rust)にまだ反映していないもの(Python prototype で検証済み、`SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions 参照):
 

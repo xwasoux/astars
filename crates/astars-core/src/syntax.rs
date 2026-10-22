@@ -18,6 +18,7 @@
 //! old tree and a `NodeId` from the new tree are indices into two different
 //! arenas and are never comparable directly.
 
+use crate::diagnostics::{Diagnostic, Severity};
 use crate::Lang;
 
 /// Index into a `SyntaxTree`'s arena. Cheap to copy, safe to hand across the
@@ -164,10 +165,15 @@ impl SyntaxTree {
         self.node(id).span
     }
 
-    pub fn source_of(&self, id: NodeId) -> &str {
+    /// Lossily decodes the node's source bytes (invalid UTF-8 becomes
+    /// U+FFFD), rather than panicking - `source` can contain invalid UTF-8
+    /// when the tree came from `parse_bytes` on non-UTF-8 input (see
+    /// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "errors=replace" policy). Byte
+    /// offsets from `span_of` stay correct either way; only this rendered
+    /// text is lossy.
+    pub fn source_of(&self, id: NodeId) -> String {
         let span = self.span_of(id);
-        std::str::from_utf8(&self.source[span.start_byte..span.end_byte])
-            .expect("astars-core: node span was not on a UTF-8 boundary")
+        String::from_utf8_lossy(&self.source[span.start_byte..span.end_byte]).into_owned()
     }
 
     pub fn root(&self) -> NodeId {
@@ -259,6 +265,49 @@ impl SyntaxTree {
             .changed_ranges
             .iter()
             .any(|changed| spans_overlap(span, *changed))
+    }
+
+    /// Parser-recovery diagnostics for this tree: tree-sitter's `ERROR` /
+    /// `MISSING` nodes, in preorder. Reads `self.raw` directly rather than
+    /// walking the `SyntaxNode` arena, since recovery nodes are a
+    /// tree-sitter-specific concept that `SyntaxNode` does not record (see
+    /// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "Diagnostics Span").
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        let root = self.raw.root_node();
+        if !root.has_error() {
+            return Vec::new();
+        }
+
+        let mut diagnostics = Vec::new();
+        let mut stack = vec![root];
+        while let Some(node) = stack.pop() {
+            if node.is_error() {
+                diagnostics.push(Diagnostic {
+                    severity: Severity::Error,
+                    message: "syntax error".to_string(),
+                    span: ByteSpan { start_byte: node.start_byte(), end_byte: node.end_byte() },
+                });
+            } else if node.is_missing() {
+                diagnostics.push(Diagnostic {
+                    severity: Severity::Error,
+                    message: format!("missing syntax node: {}", node.kind()),
+                    span: ByteSpan { start_byte: node.start_byte(), end_byte: node.end_byte() },
+                });
+            }
+
+            let mut children = Vec::new();
+            let mut cursor = node.walk();
+            if cursor.goto_first_child() {
+                loop {
+                    children.push(cursor.node());
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+            stack.extend(children.into_iter().rev());
+        }
+        diagnostics
     }
 
     fn node(&self, id: NodeId) -> &SyntaxNode {
