@@ -21,6 +21,59 @@ source-aware な edit primitive を提供する。Astars は、それ単体で�
 製品ではなく、downstream package が土台にできる小さな engine であることを
 狙っている。
 
+## Why Astars / Astars を選ぶ理由
+
+- **Source-faithful, editable program structure.** Every node maps back to its
+  exact source span, and the same engine that queries the tree can edit it -
+  replace a node's span and immediately ask which other nodes survived
+  unchanged, so editing and re-analysis are one loop instead of two
+  disconnected tools.<br>
+  **Source-faithful で編集可能なプログラム構造。** すべての node が元の
+  source span に正確に対応づいており、木を query するのと同じ engine でその
+  まま編集もできる — node の source span を replace して、他のどの node が
+  影響を受けずに残ったかをすぐ確認できるので、編集と再解析が別々のツールで
+  はなく同じ loop になる。
+
+- **One Rust core, no per-language reimplementation.** Python and Node.js
+  bindings share a single `astars-core` implementation with full API parity,
+  verified end-to-end in both runtimes - the same engine serves ML/research
+  workflows (Python) and coding-agent tooling (Node) without duplicating
+  logic.<br>
+  **単一の Rust core、言語ごとの再実装なし。** Python/Node binding は単一の
+  `astars-core` 実装を共有し、API 全体でパリティが取れている(両ランタイム
+  で実機確認済み) — ML/研究向け(Python)と coding agent ツール向け(Node)
+  を、ロジックを重複させずに同じ engine で支える。
+
+- **Built for structured, LLM-friendly edits - not diffs.** Diff- and
+  line-number-based edit formats break down on large files when a model
+  mistranscribes a line; Astars lets a node be addressed and replaced
+  directly, with the result immediately re-checkable, instead of requiring
+  the model to retype surrounding context.<br>
+  **diff ではなく、構造化された LLM フレンドリーな編集のために作られてい
+  る。** diff/行番号ベースの編集形式は、モデルが行を書き写し損ねると大きな
+  ファイルで崩れやすい。Astars は node を直接指定して replace でき、その
+  結果をすぐ再検証できる — モデルに周辺コードを書き写させる必要がない。
+
+- **A lightweight substrate for analysis tools, not a product.** Astars
+  doesn't decide what a metric means or which refactor to apply; it provides
+  the parse/query/edit/diagnose primitives that downstream packages
+  (metrics, code review, pruning, LLM evaluation) can build on.<br>
+  **分析ツールのための軽量な土台であり、プロダクトではない。** Astars は
+  metric の意味やどの refactor を適用すべきかを判断しない。metrics・code
+  review・pruning・LLM 評価のような downstream package が土台にできる、
+  parse/query/edit/diagnose の primitive を提供する。
+
+These are the engine's design goals, not all fully proven yet - the
+name/kind-based node addressing that the third point leans on, and any real
+downstream package, are still open. See
+[`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md)'s 「強みの実現状況」
+section for the exact, current status of each.<br>
+これらは engine の設計目標であり、すべてが証明済みというわけではない —
+3点目が前提とする名前/kind ベースの node アドレス指定も、実際の
+downstream package も、まだ無い。各項目の正確な現状は
+[`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) の「強みの実現状況」
+節を参照。
+
 ## Project Status / プロジェクトの状態
 
 **Astars's core engine is being rewritten in Rust** (`crates/astars-core`), with

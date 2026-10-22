@@ -1,6 +1,6 @@
 # Astars Edit Model(Rust core)
 
-ステータス: 編集 primitive(v1)設計中。データ構造(`SyntaxTree`/`SyntaxNode`)は実装済み
+ステータス: 編集 primitive(v1、操作7・8・11)は実装済み。操作9・10(系譜追跡、名前/kind アドレス指定)は Not Now(具体的な消費者待ち)
 
 関連文書:
 
@@ -55,9 +55,9 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 
 ## 操作リスト
 
-シナリオから導出した、Astars core が支えるべき操作。
+シナリオから導出した、Astars core が支えるべき操作。実装状況は 2026-10-23 時点(`ACTION_ITEMS.ja.md` の「強みの実現状況」と対応)。
 
-### v0 で実装する
+### v0 で実装済み
 
 1. 親子ナビゲーション(parent / children)
 2. traverse — 木全体を辿る(`walk`、kind filter あり)
@@ -66,17 +66,20 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 5. `span_of(node)` — node → byte 範囲
 6. `source_of(node)` — node → source のslice
 
-### 将来実装するが、データ構造選択で詰ませたくない
+### v1 で実装済み
 
-7. **編集 primitive**: source の一部を書き換えて新しい tree/source を作る。8・9 が成立する前提
-8. **編集前後の node 同一性比較**: このnodeは編集で変わっていないか(シナリオA・D)
-9. **派生系譜の追跡**: この variant node は元のどの node から来たか(シナリオB)
-10. **名前/kind ベースのアドレス指定**: byte offset とは別の軸で node を引く(シナリオA)
-11. **部分木の一括 export**: node 一個ずつではなく、subtree をまとめて1回の FFI 呼び出しで取り出す(シナリオC・D。FFI 越しの逐次呼び出しは呼び出し回数分のオーバーヘッドが乗る)
+7. **編集 primitive**: `SyntaxTree::replace` — source の一部を書き換えて新しい tree/source を作る。8・9 が成立する前提
+8. **編集前後の node 同一性比較**: `SyntaxTree::unchanged_in` — このnodeは編集で変わっていないか(シナリオA・D)
+11. **部分木の一括 export**: `SyntaxTree::dump` — node 一個ずつではなく、subtree をまとめて1回の FFI 呼び出しで取り出す(シナリオC・D。FFI 越しの逐次呼び出しは呼び出し回数分のオーバーヘッドが乗る)
+
+### 未実装(Not Now。具体的な消費者が出てくるまで着手しない)
+
+9. **派生系譜の追跡**: この variant node は元のどの node から来たか(シナリオB で必須)
+10. **名前/kind ベースのアドレス指定**: byte offset とは別の軸で node を引く(シナリオA の核心。現状は `find(kind)` で候補を絞ってから利用者側で名前を確認する形に留まる)
 
 ### 制約(機能要求ではなく、全操作に効いてくる前提)
 
-12. node は binding(Python/Node)に **値として** 渡せる必要がある。Rust の参照・lifetime を FFI 境界の外に持ち出せない
+12. node は binding(Python/Node)に **値として** 渡せる必要がある。Rust の参照・lifetime を FFI 境界の外に持ち出せない — v0/v1 とも `NodeId(u32)` で満たしている
 
 ## 編集時のテキスト/木の追従: tree-sitter と自前実装の分担
 
