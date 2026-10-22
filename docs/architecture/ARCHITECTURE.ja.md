@@ -18,8 +18,6 @@
 
 #### astars-core: `SyntaxTree` / `SyntaxNode` データ構造 + 編集 primitive + Diagnostics のクラス図
 
-> 2026-10-22、クラス図の表現を draw.io(`.drawio.svg`)から Mermaid(`classDiagram`、Markdown に直接埋め込み)に切り替えた。理由: (1) コード変更のたびに図を更新するコストが draw.io だと高く、実際に編集 primitive と `parse_bytes`/`parse_file`/Diagnostics の2ラウンド分、図の更新が漏れていた、(2) draw.io の VS Code 拡張でファイルを開くだけで background-color 等のメタデータ差分が git 上に出てしまう、(3) この文書は既に Mermaid の flowchart(Layer Overview)を使っており、レンダリング経路は実績がある。`repo-structure`(意思決定の記録図で、クラス図ではない)はそのまま draw.io に残す。
-
 ```mermaid
 classDiagram
     class Lang {
@@ -113,14 +111,13 @@ classDiagram
     SyntaxTree ..> Diagnostic
     Diagnostic --> Severity
     Diagnostic --> ByteSpan
-
-    note for SyntaxTree "parser-isolated design bet: SyntaxNode は tree-sitter 型を一切持たない。raw(tree-sitter の Tree。図では TreeSitterTree と表記)は private field で edit primitive の incremental re-parse 専用。kind/field_name は当初 static str の予定だったが tree-sitter の Node.kind() が tree の lifetime に紐づくため String に変更(逸脱)。source_of は lossy UTF-8 decode(parse_bytes が非UTF-8を受け付けるため)。"
-    note for EditResult "changed_ranges は private。unchanged_in は NodeId 等価ではなく byte span の overlap で判定する(新旧 tree は別 arena)。"
-    note for Diagnostic "span は non-optional(v0 の発生源が tree-sitter の ERROR/MISSING node のみのため)。Severity は v0 では Error の1 variant のみ。"
-    note for AstarsError "Io variant が std の io error を保持する(parse_file の読み込み失敗)。"
-    note for ParseAdapter "引数の型は source: byte列, lang: Lang。実際のシグネチャは parse(source: &[u8], lang: Lang) -> SyntaxTree。"
-    note for astars_core "実際のシグネチャ: parse_str(source: &str, lang) -> ParseResult / parse_bytes(source: &[u8], lang) -> ParseResult / parse_file(path: &Path, lang) -> Result(ParseResult, AstarsError)。"
 ```
+
+- parser-isolated: `SyntaxNode` は tree-sitter 型を一切持たない。`raw`(図の `TreeSitterTree` = `tree_sitter::Tree`)は private field で edit primitive の incremental re-parse 専用
+- `kind`/`field_name` は当初 `&'static str` の予定だったが、`tree_sitter::Node::kind()` が tree の lifetime に紐づくため `String` に変更(設計からの逸脱)
+- `source_of` は lossy UTF-8 decode(`parse_bytes` が非 UTF-8 を受け付けるため)
+- `EditResult.changed_ranges` は private。`unchanged_in` は `NodeId` 等価ではなく byte span の overlap で判定する(新旧 tree は別 arena で `NodeId` を直接比較できないため)
+- `Diagnostic.span` は non-optional(v0 の発生源が tree-sitter の `ERROR`/`MISSING` node のみのため)。`Severity` は v0 では `Error` の1 variant のみ
 
 #### bindings/python(crate `astars-py`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
 
@@ -185,11 +182,11 @@ classDiagram
     PyEditResult o-- PySyntaxTree
     PySyntaxTree ..> PyDiagnostic
     PySyntaxTree ..> PyNodeInfo
-
-    note for astars_module "module名は _astars。parse_file の I/O 失敗は OSError(AstarsError の Io variant を文字列化して PyErr に変換)。"
-    note for PySyntaxTree "inner は astars_core の SyntaxTree を private field として保持する薄い wrapper(図では CoreSyntaxTree と表記)。PyLang は pyclass(eq, eq_int)、PyNodeInfo/PyDiagnostic/PyParseResult は pyclass(get_all)。"
-    note for PyEditResult "inner は astars_core の EditResult を丸ごと保持する(図では CoreEditResult と表記。changed_ranges が private で tree だけに分解できないため)。tree getter は Py new で新しい PySyntaxTree を作って返す。"
 ```
+
+- module 名は `_astars`。`parse_file` の I/O 失敗は `OSError`(`AstarsError::Io` を文字列化して変換)
+- `PySyntaxTree`/`PyEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper
+- `PyEditResult.tree` getter は `Py::new` で新しい `PySyntaxTree` を作って返す
 
 #### bindings/node(crate `astars-node`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
 
@@ -250,13 +247,14 @@ classDiagram
     JsEditResult ..> JsSyntaxTree
     JsSyntaxTree ..> JsDiagnostic
     JsSyntaxTree ..> JsNodeInfo
-
-    note for astars_native "npm package名は @astars/native。設計からの逸脱: JsParseResult は存在しない。napi-rs の napi(object) は全fieldに双方向変換を要求し napi class を直接持てないため、lang を JsSyntaxTree 自身の field(getter)に畳み込み、parseStr/parseBytes/parseFile は JsSyntaxTree を直接返す。parseFile の I/O 失敗は throw(napi Error from_reason)。"
-    note for JsSyntaxTree "inner は astars_core の SyntaxTree を private field として保持する薄い wrapper(図では CoreSyntaxTree と表記)。メソッド名/フィールド名は napi-rs の規約で camelCase になる。"
-    note for JsEditResult "inner は astars_core の EditResult を丸ごと保持する(Python 側と同じ理由。図では CoreEditResult と表記)。tree() getter は SyntaxTree を clone して返す。"
 ```
 
-> 2026-05 〜 09 にかけて書かれていた旧版は、Python 実装(`astars/` package)を前提にした目標アーキテクチャだった。`STRATEGY.ja.md` で core engine の実装言語を Rust にする方針へ転換したため、本書はその旧版を置き換える形で Rust 構成向けに書き直している。旧 Python 実装は `prototype-python/` に frozen reference として残っており、そこで検証済みの設計判断(source mapping の挙動、tie-breaker 方針など)は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions を通じて引き継ぐ。
+- npm package 名は `@astars/native`。メソッド名/フィールド名は napi-rs の規約で camelCase になる
+- **設計からの逸脱**: `JsParseResult` は存在しない。napi-rs の `#[napi(object)]` は全 field に双方向変換を要求し `#[napi]` class を直接持てないため、`lang` を `JsSyntaxTree` 自身の field(getter)に畳み込み、`parseStr`/`parseBytes`/`parseFile` は `JsSyntaxTree` を直接返す
+- `parseFile` の I/O 失敗は throw(`napi::Error::from_reason`)
+- `JsSyntaxTree`/`JsEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper。`JsEditResult.tree()` getter は `SyntaxTree` を clone して返す
+
+> 旧 Python 実装(`astars/` package)前提の版からは `STRATEGY.ja.md` の Rust 移行方針に伴い書き直している。旧実装は `prototype-python/` に frozen reference として残り、検証済みの設計判断は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions に引き継ぐ。
 
 この文書は、Astars の概念モデルを実装上の crate / module boundary に落とすための文書である。現行コードをそのまま正当化する文書ではなく、`astars` engine として安定させるべき目標アーキテクチャを示す。
 
