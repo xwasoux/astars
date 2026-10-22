@@ -35,7 +35,7 @@
 
 ## Next Action
 
-次に着手する作業は、編集 primitive(v1)を実装することである。設計は [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」を参照。要点: `SyntaxTree` に `Lang` を持たせる、`replace(target, new_text) -> EditResult` を最小 primitive にする(insert/delete は v1 では別メソッドにしない)、比較は `NodeId` 一致ではなく `changed_ranges` との byte 範囲重なりで行う(`unchanged_in(id, edit) -> bool`)、v1 は Piece Table なしの素朴な実装にする。
+次に着手する作業は、編集 primitive(v1)を Python / Node binding に公開することである。`astars-core` 側の実装(`replace` / `EditResult` / `unchanged_in`)は完了した。
 
 - [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
 - [x] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
@@ -44,7 +44,7 @@
 - [x] 編集時のテキスト/木の追従モデルを整理する(`EDIT_MODEL.ja.md`)
 - [x] AST node のデータ構造を設計・実装する(`SyntaxTree` / `SyntaxNode` / `NodeId` / `ByteSpan`)
 - [x] `SyntaxTree` を Python / Node binding に公開する(`PySyntaxTree`/`PyNodeInfo`、`JsSyntaxTree`/`JsNodeInfo`)
-- [ ] 編集 primitive(v1): `SyntaxTree::replace` + `EditResult` + `unchanged_in` を `astars-core` に実装する
+- [x] 編集 primitive(v1): `SyntaxTree::replace` + `EditResult` + `unchanged_in` を `astars-core` に実装する(`cargo test -p astars-core` で10件pass。`replace`での削除時、`source_of(root())`が先頭の空行を含まないtree-sitter-pythonの挙動を発見しテストで明文化した)
 - [ ] 編集 primitive を Python / Node binding に公開する
 - [ ] v0 scope の残作業(`SourceText` の Unicode/encoding 境界、`parse_bytes` / `parse_file`、Diagnostics)— 編集 primitive の後に着手する
 
@@ -54,8 +54,8 @@
 - [x] Rust core v0 scope が文書化されている
 - [x] `walk` / `find` / `node_at` / `span_of` / `source_of` が `astars-core` に実装されている
 - [x] `SyntaxTree` が Python / Node 両方の binding から実際に使える(`node_info` / `dump` を含む)
-- [ ] `replace` + `unchanged_in` が `astars-core` と両 binding で動作する(編集して、意図した箇所以外が変わっていないことを確認できる)
-- [x] `walk` / `find` / `node_at` / `span_of` / `source_of` が `astars-core` に実装されている
+- [x] `replace` + `unchanged_in` が `astars-core` で動作する(編集して、意図した箇所以外が変わっていないことを確認できる)
+- [ ] `replace` + `unchanged_in` が Python / Node binding からも使える
 
 ## Decided: Release 0.1.1 は出さない
 

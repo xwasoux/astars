@@ -8,4 +8,4 @@
 
 mod adapter;
 
-pub(crate) use adapter::ParseAdapter;
+pub(crate) use adapter::{parser_for, ParseAdapter};

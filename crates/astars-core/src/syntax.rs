@@ -9,6 +9,16 @@
 //! top). `span` lives directly on the node because v0 has no many-to-many
 //! raw-origin mapping need; if normalization is added later, that is when a
 //! `SyntaxGraph`-style indirection would come back.
+//!
+//! `replace` / `EditResult` / `unchanged_in` are the v1 edit primitive (see
+//! EDIT_MODEL.ja.md's "編集 primitive(v1)の設計"). v1 is deliberately naive:
+//! source bytes are spliced with a plain copy (no Piece Table yet), and
+//! "did this node change" is answered via `tree_sitter::Tree::changed_ranges`
+//! rather than any `NodeId` bookkeeping across trees - a `NodeId` from the
+//! old tree and a `NodeId` from the new tree are indices into two different
+//! arenas and are never comparable directly.
+
+use crate::Lang;
 
 /// Index into a `SyntaxTree`'s arena. Cheap to copy, safe to hand across the
 /// FFI boundary to bindings (constraint 12 in EDIT_MODEL.ja.md) - unlike a
@@ -59,20 +69,22 @@ pub struct SyntaxTree {
     nodes: Vec<SyntaxNode>,
     root: NodeId,
     source: Vec<u8>,
-    // Kept only so a future edit primitive can do `raw.edit(...)` +
-    // `parser.parse_with(..., Some(&raw))` (EDIT_MODEL.ja.md's edit policy)
+    // Kept so the edit primitive can do `raw.edit(...)` +
+    // `parser.parse(..., Some(&raw))` (EDIT_MODEL.ja.md's edit policy)
     // instead of an unrelated from-scratch re-parse. Never exposed publicly:
     // SyntaxNode itself holds no tree-sitter type, so this stays an
     // implementation detail of SyntaxTree alone.
-    #[allow(dead_code)] // not read until the edit primitive lands
     raw: tree_sitter::Tree,
+    // Needed to build a parser for re-parsing after an edit - SyntaxTree
+    // only remembers the language, not a ready `tree_sitter::Parser`.
+    lang: Lang,
 }
 
 impl SyntaxTree {
-    pub(crate) fn from_tree_sitter(raw: tree_sitter::Tree, source: Vec<u8>) -> Self {
+    pub(crate) fn from_tree_sitter(lang: Lang, raw: tree_sitter::Tree, source: Vec<u8>) -> Self {
         let mut nodes = Vec::new();
         let root = Self::build_node(raw.root_node(), None, None, &mut nodes);
-        Self { nodes, root, source, raw }
+        Self { nodes, root, source, raw, lang }
     }
 
     fn build_node(
@@ -155,6 +167,10 @@ impl SyntaxTree {
         self.root
     }
 
+    pub fn lang(&self) -> Lang {
+        self.lang
+    }
+
     pub fn kind_of(&self, id: NodeId) -> &str {
         &self.node(id).kind
     }
@@ -171,6 +187,73 @@ impl SyntaxTree {
         &self.node(id).children
     }
 
+    /// Replace `target`'s source span with `new_text`, producing a new tree.
+    /// `self` is untouched (immutable edit) - see EDIT_MODEL.ja.md's "編集
+    /// primitive(v1)の設計". insert/delete are expressed as `replace` with
+    /// an empty `target` span or an empty `new_text`, respectively; v1 does
+    /// not add separate methods for them.
+    ///
+    /// Follows the decided edit policy: splice the source (v1: plain copy,
+    /// no Piece Table yet), tell tree-sitter what changed via
+    /// `tree.edit(InputEdit)`, then re-parse with the edited old tree passed
+    /// in so unaffected subtrees are reused and `changed_ranges` becomes
+    /// available.
+    pub fn replace(&self, target: NodeId, new_text: &str) -> EditResult {
+        let span = self.span_of(target);
+
+        let mut new_source =
+            Vec::with_capacity(self.source.len() - (span.end_byte - span.start_byte) + new_text.len());
+        new_source.extend_from_slice(&self.source[..span.start_byte]);
+        new_source.extend_from_slice(new_text.as_bytes());
+        new_source.extend_from_slice(&self.source[span.end_byte..]);
+
+        let new_end_byte = span.start_byte + new_text.len();
+        let start_position = point_at(&self.source, span.start_byte);
+        let old_end_position = point_at(&self.source, span.end_byte);
+        let new_end_position = end_position_after_insert(start_position, new_text);
+
+        let mut edited_raw = self.raw.clone();
+        edited_raw.edit(&tree_sitter::InputEdit {
+            start_byte: span.start_byte,
+            old_end_byte: span.end_byte,
+            new_end_byte,
+            start_position,
+            old_end_position,
+            new_end_position,
+        });
+
+        let mut parser = crate::parse::parser_for(self.lang);
+        let new_raw = parser
+            .parse(&new_source, Some(&edited_raw))
+            .expect("astars-core: re-parse after edit failed");
+
+        let changed_ranges = edited_raw
+            .changed_ranges(&new_raw)
+            .map(|r| ByteSpan {
+                start_byte: r.start_byte,
+                end_byte: r.end_byte,
+            })
+            .collect();
+
+        EditResult {
+            tree: SyntaxTree::from_tree_sitter(self.lang, new_raw, new_source),
+            changed_ranges,
+        }
+    }
+
+    /// Did `id` (a node in `self`, the tree *before* `edit`) survive into
+    /// `edit.tree` unchanged? Answered via byte-range overlap against
+    /// `edit`'s `changed_ranges`, not `NodeId` equality - a `NodeId` in
+    /// `self` and a `NodeId` in `edit.tree` index two different arenas and
+    /// are never comparable directly (see the module-level doc comment).
+    pub fn unchanged_in(&self, id: NodeId, edit: &EditResult) -> bool {
+        let span = self.span_of(id);
+        !edit
+            .changed_ranges
+            .iter()
+            .any(|changed| spans_overlap(span, *changed))
+    }
+
     fn node(&self, id: NodeId) -> &SyntaxNode {
         &self.nodes[id.0 as usize]
     }
@@ -178,6 +261,50 @@ impl SyntaxTree {
     fn span_contains(&self, id: NodeId, offset: usize) -> bool {
         let span = self.node(id).span;
         span.start_byte <= offset && offset < span.end_byte
+    }
+}
+
+/// The result of `SyntaxTree::replace`: the new tree, plus enough to answer
+/// `unchanged_in` queries against the tree the edit started from.
+pub struct EditResult {
+    pub tree: SyntaxTree,
+    changed_ranges: Vec<ByteSpan>,
+}
+
+fn spans_overlap(a: ByteSpan, b: ByteSpan) -> bool {
+    a.start_byte < b.end_byte && b.start_byte < a.end_byte
+}
+
+/// `tree_sitter::Point` (row, column) for a byte offset into `source`. v1
+/// scans linearly - fine for a single edit call, not optimized for repeated
+/// use (see EDIT_MODEL.ja.md: Piece Table work is deferred, not v1 scope).
+fn point_at(source: &[u8], byte_offset: usize) -> tree_sitter::Point {
+    let mut row = 0;
+    let mut line_start = 0;
+    for (i, &b) in source[..byte_offset].iter().enumerate() {
+        if b == b'\n' {
+            row += 1;
+            line_start = i + 1;
+        }
+    }
+    tree_sitter::Point {
+        row,
+        column: byte_offset - line_start,
+    }
+}
+
+/// The `Point` reached after inserting `text` starting at `start`.
+fn end_position_after_insert(start: tree_sitter::Point, text: &str) -> tree_sitter::Point {
+    let bytes = text.as_bytes();
+    match bytes.iter().rposition(|&b| b == b'\n') {
+        None => tree_sitter::Point {
+            row: start.row,
+            column: start.column + bytes.len(),
+        },
+        Some(last_newline) => tree_sitter::Point {
+            row: start.row + bytes.iter().filter(|&&b| b == b'\n').count(),
+            column: bytes.len() - (last_newline + 1),
+        },
     }
 }
 
@@ -250,4 +377,58 @@ mod tests {
         let span = tree.span_of(id);
         assert_eq!(&source[span.start_byte..span.end_byte], tree.source_of(id));
     }
+
+    #[test]
+    fn replace_updates_source_and_reports_correct_changed_status() {
+        let source = "x = 1\ny = 2\n";
+        let tree = parse_str(source, Lang::Python).tree;
+        let assignments = tree.find("assignment");
+        assert_eq!(assignments.len(), 2);
+        let (first, second) = (assignments[0], assignments[1]);
+
+        let edit = tree.replace(first, "x = 99");
+
+        let new_assignments = edit.tree.find("assignment");
+        assert_eq!(new_assignments.len(), 2);
+        assert_eq!(edit.tree.source_of(new_assignments[0]), "x = 99");
+        assert_eq!(edit.tree.source_of(new_assignments[1]), "y = 2");
+
+        // the untouched statement survives; the edited one does not
+        assert!(tree.unchanged_in(second, &edit));
+        assert!(!tree.unchanged_in(first, &edit));
+    }
+
+    #[test]
+    fn replace_with_multiline_text_reparses_correctly() {
+        // regression test for end_position_after_insert: inserted text with
+        // embedded newlines must not corrupt what follows it
+        let source = "x = 1\ny = 2\n";
+        let tree = parse_str(source, Lang::Python).tree;
+        let first = tree.find("assignment")[0];
+
+        let edit = tree.replace(first, "x = (\n    1 + 1\n)");
+        assert_eq!(
+            edit.tree.source_of(edit.tree.root()),
+            "x = (\n    1 + 1\n)\ny = 2\n"
+        );
+        assert_eq!(edit.tree.find("assignment").len(), 2);
+    }
+
+    #[test]
+    fn replace_can_delete_by_using_empty_text() {
+        let source = "x = 1\ny = 2\n";
+        let tree = parse_str(source, Lang::Python).tree;
+        let first = tree.find("assignment")[0];
+
+        let edit = tree.replace(first, "");
+
+        // Note: tree-sitter-python's `module` node excludes a leading blank
+        // line from its span, so `source_of(root())` is "y = 2\n" here, not
+        // the full "\ny = 2\n" buffer - `source_of(root)` is not guaranteed
+        // to cover 100% of the source when there is leading/trailing trivia.
+        let remaining = edit.tree.find("assignment");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(edit.tree.source_of(remaining[0]), "y = 2");
+    }
 }
+
