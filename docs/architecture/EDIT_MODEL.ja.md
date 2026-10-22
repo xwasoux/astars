@@ -1,6 +1,6 @@
 # Astars Edit Model(Rust core)
 
-ステータス: draft(データ構造設計の前段階)
+ステータス: 編集 primitive(v1)設計中。データ構造(`SyntaxTree`/`SyntaxNode`)は実装済み
 
 関連文書:
 
@@ -9,7 +9,7 @@
 - [../CONCEPTS.ja.md](../CONCEPTS.ja.md)(旧 Python 実装前提。`Edit Primitive` セクションの具体化が本書)
 - [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 
-この文書は、v0 scope の残作業(AST node 構造、`SyntaxGraph` 相当、query API)に着手する前に、「木構造のノード操作と、それに追従するテキスト編集をどう実現するか」を整理したものである。データ構造そのものの設計は、本書の結論を前提に別途進める。
+この文書は、v0 scope の AST node 構造(`SyntaxTree`/`SyntaxNode`)に着手する前に、「木構造のノード操作と、それに追従するテキスト編集をどう実現するか」を整理したものである。データ構造そのものは [syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg) の設計で実装済み。本書の後半(「編集 primitive(v1)の設計」節)は、そのデータ構造を前提に、操作7・8(編集 primitive と編集前後比較)を実装するための設計を追記したものである。
 
 ## 背景: なぜこの整理が要るか
 
@@ -109,14 +109,50 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 
 この規約により、操作8(編集前後の同一性比較)は、自前の stable-id machinery を最小限にしつつ、ほぼ tree-sitter の `changed_ranges` に乗せられる。操作9(系譜追跡)は `changed_ranges` の対象外(別系譜の variant 同士を跨ぐ)なので、引き続き自前の台帳が必要。
 
-## Open Questions(データ構造設計で決めること)
+## データ構造設計の Open Questions(解決済み)
 
-- AST node を arena(index 参照)で持つか、他の方式にするか(操作12 の bindings 値渡し制約と、tree-sitter の `parse_with` callback をどう橋渡しするか)
-- Piece Table の具体的な実装(自前 crate か、既存 crate を使うか)
-- 操作9(系譜追跡)の台帳をどこに持つか(`astars-core` 内か、呼び出し側(downstream)に任せるか)
-- 操作10(名前/kind アドレス指定)を tree-sitter query 言語の上に作るか、自前 traversal で作るか
-- 操作11(部分木の一括 export)の具体的な API 形状(JSON 的な nested 構造を返すか、flat な配列 + 親子 index を返すか)
+- ~~AST node を arena(index 参照)で持つか~~ → arena + `NodeId(u32)` で決定・実装済み([syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg))
+- Piece Table の具体的な実装 → v1 編集 primitive では見送り(下記)。導入時期は再検討
+- 操作9(系譜追跡)の台帳をどこに持つか → 未着手。v1 編集 primitive のスコープ外(下記)
+- 操作10(名前/kind アドレス指定)を tree-sitter query 言語の上に作るか、自前 traversal で作るか → 未着手
+- 操作11(部分木の一括 export)の具体的な API 形状 → `dump(id) -> Vec<NodeInfo>` 形式で実装済み([python-tree-binding.drawio.svg](python-tree-binding.drawio.svg) / [node-tree-binding.drawio.svg](node-tree-binding.drawio.svg))
+
+## 編集 primitive(v1)の設計
+
+### きっかけ
+
+AWS が Kiro IDE 向けに AST ベースの構造化編集(`insert_node` / `replace_node` / `delete_node` / `replace_in_node`、名前/kind セレクタ)を公開し、LLM 呼び出し数・token 数・ツールエラー率で実測の効果を示した([参考](https://aws.amazon.com/jp/blogs/news/surgical-precision-with-ast/))。これはシナリオA の仮説(diff/行番号より名前/kind アドレス指定が LLM agent に向く)の裏付けになる一方、「名前/kind ベースの構造化編集」という方向性自体は先に製品化されつつある。
+
+ただし Kiro は特定 IDE に閉じた内製機能であり、(1) 複数ランタイム(Python/Node)から同じ engine を再利用できること、(2) 編集を「適用して終わり」ではなく「結果を解析する」loop の一部として扱うこと、の2点は Astars 固有の強みとして残る。v1 の編集 primitive は、単体の `insert`/`replace`/`delete` ではなく、**編集(操作7)と編集前後比較(操作8)をセットで、Python/Node 両方に公開する**ことをゴールにする。
+
+### 決定事項
+
+1. **`SyntaxTree` に `Lang` を持たせる**: 編集後に再 parse するには言語を知っている必要があるが、現状 `Lang` は `ParseResult`/binding 側にしかない。`SyntaxTree` 自身に持たせる
+2. **`replace(target, new_text) -> EditResult` を最小の編集 primitive にする**: insert/delete は「空文字列への置換」「zero-width span への置換」として `replace` 1本で表現し、v1 では `insert`/`delete` を別メソッドとして増やさない
+3. **比較は `NodeId` の一致ではなく `changed_ranges` との byte 範囲重なりで行う**: 編集後の新しい木は別 arena なので、旧木の `NodeId` と新木の `NodeId` は番号として対応しない。`tree_sitter::Tree::changed_ranges(&old_raw, &new_raw)` が返す「変更された byte 範囲」に、旧 node の span が重ならなければ「変わっていない」と判定する
+
+   ```rust
+   pub struct EditResult {
+       pub tree: SyntaxTree,           // 新しい木
+       changed_ranges: Vec<ByteSpan>,  // private
+   }
+
+   impl SyntaxTree {
+       pub fn replace(&self, target: NodeId, new_text: &str) -> EditResult;
+       // id は self(旧木)の NodeId。edit.tree 側の NodeId ではない
+       pub fn unchanged_in(&self, id: NodeId, edit: &EditResult) -> bool;
+   }
+   ```
+
+4. **v1 は Piece Table なしの素朴な実装にする**: `source[..start] + new_text + source[end..]` で新しい source bytes を作り、`tree.edit(InputEdit)` + `parser.parse_with(callback, Some(&old_raw))` で incremental re-parse する(「決定した運用規約」の経路B)。効率化(Piece Table 化)は後回し
+
+### v1 のスコープ外
+
+- Piece Table によるテキスト格納の効率化
+- 操作9(系譜追跡): 複数 variant を生成するパイプライン(シナリオB)向けの台帳。v1 は単発の `replace` 呼び出しに閉じる
+- 操作10(名前/kind アドレス指定): v1 は呼び出し側が `find(kind)` 等で `target: NodeId` を解決してから `replace` を呼ぶ前提。「関数名で直接引く」until 便利 API は次の increment
+- `insert`/`delete` 専用メソッド
 
 ## Next Step
 
-本書の結論を前提に、AST node のデータ構造(node が何を持つか、tree 全体をどう保持するか)の設計に進む。
+上記の決定を元に、クラス図(`EditResult` と `SyntaxTree` の関係)とシーケンス図(`replace` 呼び出し時の処理の流れ: source 書き換え → `tree.edit()` → re-parse → `changed_ranges` 取得)を作り、実装に進む。

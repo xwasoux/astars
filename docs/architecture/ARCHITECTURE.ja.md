@@ -32,6 +32,14 @@
 
 ![node-binding-spike](node-binding-spike.drawio.svg)
 
+#### python-tree-binding: `bindings/python` の `SyntaxTree` 公開のクラス図
+
+![python-tree-binding](python-tree-binding.drawio.svg)
+
+#### node-tree-binding: `bindings/node` の `SyntaxTree` 公開のクラス図(`JsParseResult` 廃止の逸脱あり)
+
+![node-tree-binding](node-tree-binding.drawio.svg)
+
 > 2026-05 〜 09 にかけて書かれていた旧版は、Python 実装(`astars/` package)を前提にした目標アーキテクチャだった。`STRATEGY.ja.md` で core engine の実装言語を Rust にする方針へ転換したため、本書はその旧版を置き換える形で Rust 構成向けに書き直している。旧 Python 実装は `prototype-python/` に frozen reference として残っており、そこで検証済みの設計判断(source mapping の挙動、tie-breaker 方針など)は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions を通じて引き継ぐ。
 
 この文書は、Astars の概念モデルを実装上の crate / module boundary に落とすための文書である。現行コードをそのまま正当化する文書ではなく、`astars` engine として安定させるべき目標アーキテクチャを示す。
@@ -216,26 +224,26 @@ consumer(Python / Node)が依存してよいもの:
 - [x] AST-like node 構造([syntax-tree-structure.drawio.svg](syntax-tree-structure.drawio.svg) のクラス図、`NodeId` / `ByteSpan` / `SyntaxNode` / `SyntaxTree`)。v0 は tree-sitter の生 CST を 1:1 で使い、rule による正規化はまだ無い
 - [x] `SyntaxGraph` 相当は不要と判断した(v0 は 1 raw node = 1 `SyntaxNode` なので span を node に直接持たせられる。rule 正規化を足すときに再検討する。詳細は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md))
 - [x] query API(`walk`, `find(kind)`, `node_at(byte_offset)`, `span_of`, `source_of`)
-- [x] Python / Node 両 binding から実際に呼び出せることを確認済み(現状は `node_count` だけの最小追従。`SyntaxTree` 自体の binding 公開はこれから)
+- [x] `SyntaxTree` を Python / Node 両 binding に公開し、実際に動作確認済み([python-tree-binding.drawio.svg](python-tree-binding.drawio.svg) / [node-tree-binding.drawio.svg](node-tree-binding.drawio.svg)。`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)
 
 ### 残っている作業(v0 到達に必要)
 
-- [ ] `SyntaxTree` を Python / Node binding にどう公開するか設計する(node を handle/index で渡す形を想定)
+優先順位を変更した(2026-10-22、`ACTION_ITEMS.ja.md` 参照): AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進める。
+
+- [ ] **編集 primitive(v1)**: `SyntaxTree::replace` + `EditResult` + `unchanged_in`(設計は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」)。Python / Node 両方に公開するところまでを一区切りとする
 - [ ] `SourceSpan` / `SourceText` の Unicode/encoding 境界の扱い(`prototype-python` の `SOURCE_MAPPING_PLAN.ja.md` Resolved Decisions を踏襲する)
 - [ ] `parse_bytes` / `parse_file` の追加(現状 `parse_str` のみ)
 - [ ] Diagnostics(parser recovery の `ERROR` / `MISSING` node を扱う)
-- [ ] 各 binding crate に、`SyntaxTree` を mirror する型を追加する
 
 ### Non-Goals(v0 では扱わない)
 
-- edit primitive の本格実装
+- ~~edit primitive の本格実装~~ → v1(`replace` + `unchanged_in` のみ)を前倒しすることにした。insert/delete 専用メソッド、Piece Table 化、系譜追跡(操作9)、名前/kind アドレス指定(操作10)は引き続き Non-Goal(詳細は `EDIT_MODEL.ja.md` の「v1 のスコープ外」)
 - CST / `RawSyntaxNode` の stable public API 化
 - semantic analysis
 - Python 以外の対象言語
 
 ## Open Questions
 
-- AST node を `astars-core` の public facade でどう表現するか(所有権を Rust 側に置き、binding 層からは handle/index でアクセスさせる想定だが、具体形は未決定)
-- `SyntaxGraph` を `astars-core` 内の別 internal module にするか、`parse` module に含めるか
+- `SyntaxGraph` を `astars-core` 内の別 internal module にするか、`parse` module に含めるか(rule 正規化を足すタイミングで再検討)
 - Python / Node 両方で同じ node id 安定性(stable ID)をどう保証するか
-- edit primitive をいつ設計に着手するか(`STRATEGY.ja.md` の Open Questions 参照)
+- 編集 primitive の v2(Piece Table 化、insert/delete、系譜追跡、名前/kind アドレス指定)をいつ着手するか

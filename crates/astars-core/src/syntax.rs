@@ -16,6 +16,24 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(u32);
 
+impl NodeId {
+    /// Escape hatch for binding crates, which can only pass plain integers
+    /// across FFI (constraint 12 in EDIT_MODEL.ja.md) and need to round-trip
+    /// them back into `NodeId` to call `SyntaxTree` methods.
+    pub fn as_u32(self) -> u32 {
+        self.0
+    }
+
+    /// Inverse of `as_u32`. A `NodeId` built this way is only meaningful for
+    /// the `SyntaxTree` it came from; passing an out-of-range value makes
+    /// `SyntaxTree` methods panic (bindings catch this as an exception - see
+    /// `docs/architecture/python-tree-binding.drawio.svg` /
+    /// `node-tree-binding.drawio.svg`).
+    pub fn from_u32(value: u32) -> Self {
+        NodeId(value)
+    }
+}
+
 /// A byte range into the source, half-open `[start_byte, end_byte)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteSpan {
@@ -29,10 +47,8 @@ struct SyntaxNode {
     // 'static, so this is owned rather than borrowed (see EDIT_MODEL.ja.md /
     // the diagram for the original &'static str plan - this is a deviation).
     kind: String,
-    #[allow(dead_code)] // not read yet; exists for the future name/kind addressing work
     field_name: Option<String>,
     span: ByteSpan,
-    #[allow(dead_code)] // not read yet; exists for future parent-aware traversal
     parent: Option<NodeId>,
     children: Vec<NodeId>,
 }
@@ -133,6 +149,26 @@ impl SyntaxTree {
         let span = self.span_of(id);
         std::str::from_utf8(&self.source[span.start_byte..span.end_byte])
             .expect("astars-core: node span was not on a UTF-8 boundary")
+    }
+
+    pub fn root(&self) -> NodeId {
+        self.root
+    }
+
+    pub fn kind_of(&self, id: NodeId) -> &str {
+        &self.node(id).kind
+    }
+
+    pub fn field_name_of(&self, id: NodeId) -> Option<&str> {
+        self.node(id).field_name.as_deref()
+    }
+
+    pub fn parent_of(&self, id: NodeId) -> Option<NodeId> {
+        self.node(id).parent
+    }
+
+    pub fn children_of(&self, id: NodeId) -> &[NodeId] {
+        &self.node(id).children
     }
 
     fn node(&self, id: NodeId) -> &SyntaxNode {

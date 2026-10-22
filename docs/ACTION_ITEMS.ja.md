@@ -1,6 +1,6 @@
 # Astars Action Items
 
-最終確認日: 2026-10-16
+最終確認日: 2026-10-22
 
 この文書は、作業を再開するときに最初に読むための短期 action item 一覧である。
 背景や設計理由は各計画文書に残し、ここでは「次に何をするか」と完了条件だけを管理する。
@@ -29,11 +29,13 @@
 - `docs/ARCHITECTURE.ja.md` を `docs/architecture/ARCHITECTURE.ja.md` に移動し、中身を旧 Python package layout 前提から Rust 構成(`crates/astars-core` + `bindings/*`)向けに書き直した。4枚の draw.io 図(`repo-structure` / `core-parse-spike` / `python-binding-spike` / `node-binding-spike`)への参照と、Rust core の v0 scope(現状の spike と、v0 到達に残っている作業の一覧)を記載済み。他の doc(`README.md`, `V0_PLAN.ja.md`, `SOURCE_MAPPING_PLAN.ja.md`, `MIGRATION.ja.md`, `API_STRATEGY.ja.md`, `DOCS_PLAN.ja.md`)のリンクも新しいパスに修正済み
 - AST node 構造の設計に着手する前に、「編集でテキストと木がどう追従するか」を [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) に整理した。要点: (1) 4シナリオ(LLM構造化編集・変異生成パイプライン・embedding・可視化)から操作リストを導出、(2) tree-sitter の `Tree::edit` + `parse_with(..., Some(&old_tree))` + `changed_ranges` に任せられる部分と、テキスト格納(Piece Table 想定)・名前/kindアドレス指定・系譜追跡は自前実装が必要な部分を分担整理、(3) 運用規約として「編集は常に `tree.edit()` 経由で行い独立 re-parse を避ける」を決定
 - `SyntaxTree` / `SyntaxNode` を実装した。設計は [architecture/syntax-tree-structure.drawio.svg](architecture/syntax-tree-structure.drawio.svg) のクラス図に対応している。`NodeId`(arena index)で node を値として持ち、v0 は 1 raw node = 1 `SyntaxNode`(rule 正規化なし)なので span は node に直接持たせた(`SyntaxGraph` 相当は不要)。`SyntaxTree` は `tree_sitter::Tree` を private field として保持し、将来の incremental edit(`EDIT_MODEL.ja.md`)に備えている。`walk` / `find(kind)` / `node_at(offset)` / `span_of` / `source_of` を実装し、EOF 境界・span/source 往復をテストで確認済み(`cargo test -p astars-core` で7件pass)。設計からの逸脱: `kind`/`field_name` は `&'static str` の予定だったが `tree_sitter::Node::kind()` が実際には tree の lifetime に紐づくため `String` に変更した。`ParseResult.node_count` は `tree: SyntaxTree` に置き換え、`bindings/python` / `bindings/node` は `tree.walk().count()` で計算する形に最小限追従(`SyntaxTree` を binding にどう公開するかは別ラウンド)
+- `SyntaxTree` を Python / Node binding に公開した。設計は [architecture/python-tree-binding.drawio.svg](architecture/python-tree-binding.drawio.svg) / [architecture/node-tree-binding.drawio.svg](architecture/node-tree-binding.drawio.svg) のクラス図に対応している。`astars-core` に `root()` / `kind_of()` / `field_name_of()` / `parent_of()` / `children_of()` という granular accessor を追加し(`NodeId::as_u32`/`from_u32` で FFI 境界を越える)、`PySyntaxTree`/`JsSyntaxTree`(wrapper)と `PyNodeInfo`/`JsNodeInfo`(DTO)を実装。`walk`/`find` は Rust 側の遅延 iterator を binding 層で `Vec` に collect してから返す(node 1個ごとに FFI を跨がない、`EDIT_MODEL.ja.md` 操作11)。`node_info`(1件)と `dump`(部分木一括)を両方用意。Python/Node 両方で実際に動作確認済み(`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)。**設計からの逸脱(Node 側のみ)**: 図では `JsParseResult`(`#[napi(object)]`)が `tree: JsSyntaxTree` を持つ想定だったが、napi-rs の `#[napi(object)]` は全 field に双方向変換を要求し `#[napi]` class を直接持てないため、`JsParseResult` を廃止して `lang` を `JsSyntaxTree` 自身の field(getter)に畳み込み、`parseStr()` が `JsSyntaxTree` を直接返す形にした。Python 側は `Py<PySyntaxTree>` でこの問題を素直に解決できたため、Python/Node で非対称な形になっている
+- AWS が Kiro IDE 向けに AST ベースの構造化編集(名前/kind セレクタ + insert/replace/delete)を公開し、LLM 呼び出し数・token 数・エラー率で実測効果を示した(2026-10-21、[参考](https://aws.amazon.com/jp/blogs/news/surgical-precision-with-ast/))。シナリオA の仮説の裏付けにはなるが、Kiro は特定 IDE に閉じた内製機能であり、(1) 複数ランタイムでの再利用性、(2) 編集を「結果を解析する loop の一部」として扱う点、は Astars 固有の強みとして残る。これを踏まえ、v0 scope の残作業(`parse_bytes`/`parse_file`/Diagnostics)より**編集 primitive(操作7)+ 編集前後比較(操作8)を Python/Node 両方に公開することを優先する**よう再優先順位付けした。設計方針は [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」に記載
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-次に着手する作業は、`SyntaxTree` を Python / Node binding にどう公開するかを設計することである(現状は `node_count` だけの最小追従)。
+次に着手する作業は、編集 primitive(v1)を実装することである。設計は [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」を参照。要点: `SyntaxTree` に `Lang` を持たせる、`replace(target, new_text) -> EditResult` を最小 primitive にする(insert/delete は v1 では別メソッドにしない)、比較は `NodeId` 一致ではなく `changed_ranges` との byte 範囲重なりで行う(`unchanged_in(id, edit) -> bool`)、v1 は Piece Table なしの素朴な実装にする。
 
 - [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
 - [x] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
@@ -41,13 +43,18 @@
 - [x] Rust core の v0 scope を文書化する(現 Python `0.1.0` 相当: parse / normalize / map / query を想定)
 - [x] 編集時のテキスト/木の追従モデルを整理する(`EDIT_MODEL.ja.md`)
 - [x] AST node のデータ構造を設計・実装する(`SyntaxTree` / `SyntaxNode` / `NodeId` / `ByteSpan`)
-- [ ] `SyntaxTree` を Python / Node binding に公開する設計をする
-- [ ] v0 scope の残作業(`SourceText` の Unicode/encoding 境界、`parse_bytes` / `parse_file`、Diagnostics)に着手する
+- [x] `SyntaxTree` を Python / Node binding に公開する(`PySyntaxTree`/`PyNodeInfo`、`JsSyntaxTree`/`JsNodeInfo`)
+- [ ] 編集 primitive(v1): `SyntaxTree::replace` + `EditResult` + `unchanged_in` を `astars-core` に実装する
+- [ ] 編集 primitive を Python / Node binding に公開する
+- [ ] v0 scope の残作業(`SourceText` の Unicode/encoding 境界、`parse_bytes` / `parse_file`、Diagnostics)— 編集 primitive の後に着手する
 
 完了条件:
 
 - [x] Python と Node 両方の binding spike が動作する(parse できて、何らかの値が両言語から取得できる)
 - [x] Rust core v0 scope が文書化されている
+- [x] `walk` / `find` / `node_at` / `span_of` / `source_of` が `astars-core` に実装されている
+- [x] `SyntaxTree` が Python / Node 両方の binding から実際に使える(`node_info` / `dump` を含む)
+- [ ] `replace` + `unchanged_in` が `astars-core` と両 binding で動作する(編集して、意図した箇所以外が変わっていないことを確認できる)
 - [x] `walk` / `find` / `node_at` / `span_of` / `source_of` が `astars-core` に実装されている
 
 ## Decided: Release 0.1.1 は出さない
