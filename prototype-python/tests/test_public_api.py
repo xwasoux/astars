@@ -34,6 +34,36 @@ class PublicApiTests(unittest.TestCase):
         self.assertEqual(unit.source_of(function), SOURCE.rstrip("\n"))
         self.assertEqual(unit.node_at(4).kind, "Identifier")
 
+    def test_node_at_rejects_invalid_offsets(self):
+        unit = astars.parse_str(SOURCE, lang="python")
+        source_len = len(SOURCE.encode("utf-8"))
+
+        with self.assertRaises(astars.AstarsError):
+            unit.node_at(-1)
+
+        with self.assertRaises(astars.AstarsError):
+            unit.node_at(source_len + 1)
+
+    def test_node_at_returns_none_at_eof(self):
+        unit = astars.parse_str(SOURCE, lang="python")
+        source_len = len(SOURCE.encode("utf-8"))
+
+        self.assertIsNone(unit.node_at(source_len))
+
+    def test_span_and_source_reject_nodes_from_another_source_unit(self):
+        left = astars.parse_str(SOURCE, lang="python")
+        right = astars.parse_str(
+            "def other(value):\n    return value + 1\n",
+            lang="python",
+        )
+        foreign_function = right.find(kind="FunctionDef")[0]
+
+        with self.assertRaises(astars.AstarsError):
+            left.span_of(foreign_function)
+
+        with self.assertRaises(astars.AstarsError):
+            left.source_of(foreign_function)
+
     def test_parse_bytes(self):
         unit = astars.parse_bytes(SOURCE.encode("utf-8"), lang="python")
 
@@ -109,6 +139,21 @@ class PublicApiTests(unittest.TestCase):
             diagnostic.span,
             astars.SourceSpan(10, 10, (0, 10), (0, 10)),
         )
+
+    def test_node_at_does_not_return_zero_width_diagnostic_span(self):
+        unit = astars.parse_str("def hello(:\n    return 1\n", lang="python")
+        diagnostic = unit.diagnostics[0]
+
+        self.assertIsNotNone(diagnostic.span)
+        self.assertEqual(diagnostic.span.start_byte, diagnostic.span.end_byte)
+
+        node = unit.node_at(diagnostic.span.start_byte)
+        if node is None:
+            return
+
+        span = unit.span_of(node)
+        self.assertIsNotNone(span)
+        self.assertNotEqual(span.start_byte, span.end_byte)
 
 
 if __name__ == "__main__":

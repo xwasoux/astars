@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "astars-py"
+version = "0.0.0"
+description = "PyO3 bindings for astars-core (module name: _astars; not the eventual `astars` package)."
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: 3",
+]
+
+[tool.maturin]
+module-name = "_astars"
+features = ["pyo3/extension-module"]

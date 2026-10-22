@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0 - Unreleased
+
+Astars 0.2.0 is the first release of the Rust core (`crates/astars-core`) and
+its Python (`bindings/python`, module `_astars`) and Node.js
+(`bindings/node`, `@astars/native`) bindings. It replaces the pure-Python
+`astars` 0.1.0 implementation as the actively developed line; see
+`prototype-python/README.md` for the frozen 0.1.0 reference.
+
+### Added
+
+- `parse_str` / `parse_bytes` / `parse_file` (with WHATWG encoding support)
+- `SyntaxTree` query API: `walk`, `find(kind)`, `node_at(offset)`,
+  `span_of`, `source_of`, `point_at(byte_offset)`
+- Edit primitive (v1): `replace(target, new_text)` + `unchanged_in(id, edit)`
+- Parser-recovery diagnostics (`ERROR`/`MISSING` nodes)
+- Python and Node.js examples covering the full v0 surface
+
+### Known Limitations
+
+- Lineage tracking across edits and name/kind-based node addressing
+  (`EDIT_MODEL.ja.md` operations 9 and 10) are not included.
+- Structural diff between independently parsed trees (operation 13) is not
+  included.
+- No downstream `astars-*` package exists yet.
+
 ## 0.1.0 - 2026-06-01
 
 Astars 0.1.0 is the first v0 public API release.

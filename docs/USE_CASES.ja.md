@@ -1,6 +1,6 @@
 # Astars ユースケース
 
-ステータス: draft
+ステータス: ユースケース draft
 
 関連戦略: [STRATEGY.ja.md](STRATEGY.ja.md)
 

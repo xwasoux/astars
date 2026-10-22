@@ -1,10 +1,12 @@
 # Astars ロードマップ
 
-ステータス: draft
+ステータス: 継続更新中
 
 関連戦略: [STRATEGY.ja.md](STRATEGY.ja.md)
 
 この文書は、Astars の導入ストーリーと近い実装戦略を整理する。
+
+リリース単位の直近計画は [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md) で管理する。
 
 ## 導入ストーリー
 
@@ -43,44 +45,7 @@ Python reference path が安定したら、second language を使って adapter 
 
 ## 近い戦略
 
-### Phase 1: Engine Surface を安定させる
-
-- public API を定義する
-- `AParser` のような legacy name を compatibility shim として残すか判断する
-- runtime dependency が正しく install されるように package metadata を整える
-- README と examples を新 API に合わせる
-- clean environment で basic parse/query workflow が動くようにする
-- `astars-engine` への repository/package migration plan を決める
-
-### Phase 2: Core Model を安定させる
-
-- `RawSyntaxNode`, CST, AST, `SyntaxGraph` の役割を明確にする
-- CST を public API とするか、主に internal/debugging support とするか判断する
-- 複数の child selector が同じ attribute を対象にする場合の rule semantics を直す
-- source span mapping と AST construction の test を追加する
-
-### Phase 3: Engine Operations を定義する
-
-- traversal primitive を追加する
-- query primitive を追加する
-- source extraction primitive を追加する
-- generic edit/transform primitive を追加する
-- domain-specific analysis strategy は core に入れない
-
-### Phase 4: Ecosystem に備える
-
-- `astars` と `astars-*` package の境界を文書化する
-- downstream analysis module 向けの extension point を定義する
-- 最小の downstream example package または example project を作る
-- application-specific dependency を engine に追加しない
-
-### Phase 5: Language Expansion に備える
-
-- language adapter contract を文書化する
-- AST rule contract を文書化する
-- Java などを second-language validation target として扱う
-- Python reference path が安定する前に広い multi-language support を約束しない
-
+version ごとの release scope は [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)、直近の action item は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) を参照する。
 
 ## 成功 / 失敗シグナル
 

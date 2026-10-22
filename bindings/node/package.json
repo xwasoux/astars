@@ -1,0 +1,24 @@
+{
+  "name": "@astars/native",
+  "version": "0.0.0",
+  "description": "napi-rs bindings for astars-core (not the eventual `astars` / `@astars/core` package).",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "astars-native",
+    "targets": [
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3"
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform"
+  }
+}

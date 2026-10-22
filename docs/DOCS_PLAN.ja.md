@@ -1,21 +1,23 @@
 # Astars ドキュメント計画
 
-ステータス: draft
+ステータス: 継続更新中
 
 関連戦略: [STRATEGY.ja.md](STRATEGY.ja.md)
 
 この文書は、Astars のドキュメントをどの粒度に分けるかを整理するための叩き台である。
 
+当面は日本語版を primary document とする。英語版は、戦略文書群が安定してからまとめて同期する。
+
 想定する文書構成は次の通り。
 
-- `STRATEGY.md` / `STRATEGY.ja.md`: 上位方針、独自性、ecosystem、trade-off
-- `API_STRATEGY.md` / `API_STRATEGY.ja.md`: public API、extension API、internal API の境界
-- `CONCEPTS.md` / `CONCEPTS.ja.md`: `RawSyntaxNode`, CST, AST, `SyntaxGraph`, source span の概念定義
-- `USE_CASES.md` / `USE_CASES.ja.md`: research / practical use cases の詳細
-- `ARCHITECTURE.md` / `ARCHITECTURE.ja.md`: module 構成、依存方向、data flow
-- `ROADMAP.md` / `ROADMAP.ja.md`: 実装 phase、milestone、release plan
-- `MIGRATION.md` / `MIGRATION.ja.md`: 旧 API から新 API への移行方針
-- `V0_PLAN.md` / `V0_PLAN.ja.md`: v0 public API 実装の具体的な作業計画
-- `RELEASE_STRATEGY.md` / `RELEASE_STRATEGY.ja.md`: branch strategy、versioning、PyPI/TestPyPI publish 方針
+- `ACTION_ITEMS.ja.md`: 現在地、直近の作業順、完了条件、強みの実現状況
+- `STRATEGY.ja.md`: 上位方針、独自性、ecosystem、trade-off
+- `USE_CASES.ja.md`: research / practical use cases の詳細
+- `architecture/ARCHITECTURE.ja.md`: module 構成、依存方向、クラス図(Mermaid)
+- `architecture/EDIT_MODEL.ja.md`: 編集・diff まわりのシナリオ、操作リスト、設計根拠
+- `SOURCE_MAPPING_PLAN.ja.md`: Python prototype で検証した source mapping の設計判断(Rust 設計の参照点)
+- `ROADMAP.ja.md`: 導入ストーリー
+- `NEXT_RELEASE_PLAN.ja.md`: version ごとの release scope
+- `RELEASE_STRATEGY.ja.md`: branch strategy、versioning、publish 方針
 
-分割の基準は、読む人の関心である。戦略判断を知りたい人は `STRATEGY`、実装に入る人は `ARCHITECTURE`、downstream package を作る人は `API_STRATEGY` と `CONCEPTS` を読む、という状態を目指す。
+分割の基準は、読む人の関心である。戦略判断を知りたい人は `STRATEGY`、実装に入る人は `ARCHITECTURE` / `EDIT_MODEL`、次に何をやるかを知りたい人は `ACTION_ITEMS` / `NEXT_RELEASE_PLAN` を読む、という状態を目指す。

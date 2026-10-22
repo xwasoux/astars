@@ -1,0 +1,18 @@
+[package]
+name = "astars-py"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PyO3 bindings for astars-core."
+
+[lib]
+name = "_astars"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+astars-core = { path = "../../crates/astars-core" }
+# extension-module is NOT enabled here: it disables linking against libpython,
+# which breaks `cargo test`. maturin passes it explicitly at build time via
+# [tool.maturin] features in pyproject.toml.
+pyo3 = { version = "0.30.1" }
