@@ -244,12 +244,27 @@ fn parse_bytes(py: Python<'_>, source: &[u8], lang: PyRef<'_, PyLang>) -> PyResu
     PyParseResult::from_core(py, result)
 }
 
-/// `_astars.parse_file(path, lang) -> ParseResult`: reads `path` and parses
-/// it (see `astars_core::parse_file`). Raises `OSError` on an I/O failure.
+/// `_astars.parse_file(path, lang, encoding="utf-8") -> ParseResult`: reads
+/// `path`, decodes it as `encoding` (a WHATWG Encoding Standard label), and
+/// parses the result (see `astars_core::parse_file`). Raises `OSError` on an
+/// I/O failure, `ValueError` on an unrecognized `encoding` label.
 #[pyfunction]
-fn parse_file(py: Python<'_>, path: &str, lang: PyRef<'_, PyLang>) -> PyResult<PyParseResult> {
-    let result = astars_core::parse_file(std::path::Path::new(path), (*lang).into())
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyOSError, _>(err.to_string()))?;
+#[pyo3(signature = (path, lang, encoding="utf-8"))]
+fn parse_file(
+    py: Python<'_>,
+    path: &str,
+    lang: PyRef<'_, PyLang>,
+    encoding: &str,
+) -> PyResult<PyParseResult> {
+    let result = astars_core::parse_file(std::path::Path::new(path), (*lang).into(), encoding)
+        .map_err(|err| match err {
+            astars_core::AstarsError::Io(_) => {
+                PyErr::new::<pyo3::exceptions::PyOSError, _>(err.to_string())
+            }
+            astars_core::AstarsError::UnsupportedEncoding(_) => {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(err.to_string())
+            }
+        })?;
     PyParseResult::from_core(py, result)
 }
 

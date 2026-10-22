@@ -27,6 +27,7 @@ classDiagram
     class AstarsError {
         <<enum>>
         Io
+        UnsupportedEncoding
     }
     class Severity {
         <<enum>>
@@ -92,7 +93,7 @@ classDiagram
         <<module>>
         +parse_str(source, lang) ParseResult
         +parse_bytes(source, lang) ParseResult
-        +parse_file(path, lang) ParseResult
+        +parse_file(path, lang, encoding) ParseResult
     }
 
     astars_core ..> ParseAdapter
@@ -172,7 +173,7 @@ classDiagram
         <<pymodule _astars>>
         +parse_str(source, lang) PyParseResult
         +parse_bytes(source, lang) PyParseResult
-        +parse_file(path, lang) PyParseResult
+        +parse_file(path, lang, encoding) PyParseResult
     }
 
     astars_module ..> PyParseResult
@@ -184,7 +185,7 @@ classDiagram
     PySyntaxTree ..> PyNodeInfo
 ```
 
-- module 名は `_astars`。`parse_file` の I/O 失敗は `OSError`(`AstarsError::Io` を文字列化して変換)
+- module 名は `_astars`。`parse_file` の `encoding` 引数はデフォルト `"utf-8"`(WHATWG Encoding Standard のラベル)。I/O 失敗は `OSError`、不明な `encoding` ラベルは `ValueError`
 - `PySyntaxTree`/`PyEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper
 - `PyEditResult.tree` getter は `Py::new` で新しい `PySyntaxTree` を作って返す
 
@@ -238,7 +239,7 @@ classDiagram
         <<napi module>>
         +parseStr(source, lang) JsSyntaxTree
         +parseBytes(source, lang) JsSyntaxTree
-        +parseFile(path, lang) JsSyntaxTree
+        +parseFile(path, lang, encoding) JsSyntaxTree
     }
 
     astars_native ..> JsSyntaxTree
@@ -251,7 +252,7 @@ classDiagram
 
 - npm package 名は `@astars/native`。メソッド名/フィールド名は napi-rs の規約で camelCase になる
 - **設計からの逸脱**: `JsParseResult` は存在しない。napi-rs の `#[napi(object)]` は全 field に双方向変換を要求し `#[napi]` class を直接持てないため、`lang` を `JsSyntaxTree` 自身の field(getter)に畳み込み、`parseStr`/`parseBytes`/`parseFile` は `JsSyntaxTree` を直接返す
-- `parseFile` の I/O 失敗は throw(`napi::Error::from_reason`)
+- `parseFile` の `encoding` 引数は optional(デフォルト `"utf-8"`。WHATWG Encoding Standard のラベル)。I/O 失敗・不明な `encoding` ラベルはいずれも throw(`napi::Error::from_reason`)
 - `JsSyntaxTree`/`JsEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper。`JsEditResult.tree()` getter は `SyntaxTree` を clone して返す
 
 > 旧 Python 実装(`astars/` package)前提の版からは `STRATEGY.ja.md` の Rust 移行方針に伴い書き直している。旧実装は `prototype-python/` に frozen reference として残り、検証済みの設計判断は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions に引き継ぐ。
@@ -445,11 +446,12 @@ consumer(Python / Node)が依存してよいもの:
 優先順位を変更した(2026-10-22、`ACTION_ITEMS.ja.md` 参照): AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進めた。以降のアイテムもすべて完了した。
 
 - [x] **編集 primitive(v1)**: `SyntaxTree::replace` + `EditResult` + `unchanged_in`(設計は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」)。Python / Node 両方に公開済み
-- [x] `parse_bytes` / `parse_file` の追加(`ParseAdapter::parse` が `&[u8]` を受ける形に変更し、`parse_str` はその薄いラッパーにした。`parse_file` は `AstarsError::Io` を返す。非 UTF-8 encoding サポートは追加していない — 下記 Non-Goals 参照)
+- [x] `parse_bytes` / `parse_file` の追加(`ParseAdapter::parse` が `&[u8]` を受ける形に変更し、`parse_str` はその薄いラッパーにした。`parse_file` は `AstarsError::Io` を返す)
 - [x] `SyntaxTree::source_of` の Unicode 境界対応(`&str` + `.expect()` で panic する実装から、`String::from_utf8_lossy` で U+FFFD 置換する実装に変更。byte offset 自体は常に正しいまま)
 - [x] Diagnostics(`astars_core::Diagnostic` / `Severity` を新設し、`SyntaxTree::diagnostics()` で tree-sitter の `ERROR` / `MISSING` node を公開)
+- [x] `parse_file` の非 UTF-8 encoding サポート(2026-10-23、`encoding_rs` を追加して実装。`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベルで decode してから parse する。不明なラベルは `AstarsError::UnsupportedEncoding` を返す)
 
-Python / Node 両 binding にも、`parse_bytes` / `parse_file` / `diagnostics()` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
+Python / Node 両 binding にも、`parse_bytes` / `parse_file`(encoding 引数込み)/ `diagnostics()` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
 
 ### Non-Goals(v0 では扱わない)
 
@@ -457,8 +459,7 @@ Python / Node 両 binding にも、`parse_bytes` / `parse_file` / `diagnostics()
 - CST / `RawSyntaxNode` の stable public API 化
 - semantic analysis
 - Python 以外の対象言語
-- `parse_file` の非 UTF-8 encoding サポート(Shift-JIS 等)。`encoding_rs` のような追加依存が必要になるため v0 では見送った
-- `SourceSpan` の `start_point`/`end_point`(line/column)の public API 化。`replace` 内部の `point_at` helper はあるが非公開のまま
+- `SourceSpan` の `start_point`/`end_point`(line/column)の public API 化。`replace` 内部の `point_at` helper はあるが非公開のまま。具体的な消費者が出てから着手する(`ACTION_ITEMS.ja.md` の Not Now 参照)
 
 ## Open Questions
 

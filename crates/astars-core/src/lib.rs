@@ -32,17 +32,24 @@ pub struct ParseResult {
     pub tree: SyntaxTree,
 }
 
-/// Errors `astars-core`'s public API can return. v0 scope: just the I/O
-/// failure `parse_file` can hit while reading its path.
+/// Errors `astars-core`'s public API can return.
 #[derive(Debug)]
 pub enum AstarsError {
+    /// `parse_file` failed to read its path.
     Io(std::io::Error),
+    /// `parse_file` was given an `encoding` label `encoding_rs::Encoding::for_label`
+    /// does not recognize (the WHATWG Encoding Standard's labels, e.g. `"utf-8"`,
+    /// `"shift_jis"`, `"euc-jp"`).
+    UnsupportedEncoding(String),
 }
 
 impl std::fmt::Display for AstarsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AstarsError::Io(e) => write!(f, "astars-core: failed to read file: {e}"),
+            AstarsError::UnsupportedEncoding(label) => {
+                write!(f, "astars-core: unsupported encoding label: {label}")
+            }
         }
     }
 }
@@ -65,13 +72,21 @@ pub fn parse_bytes(source: &[u8], lang: Lang) -> ParseResult {
     ParseResult { lang, tree }
 }
 
-/// Read `path` and parse its bytes as `lang`. v0 always treats file content
-/// as UTF-8 (lossily, via `parse_bytes`) - unlike the Python prototype's
-/// `parse_file(..., encoding=...)`, there is no encoding parameter yet;
-/// non-UTF-8 source files are a deferred Non-Goal (see `ACTION_ITEMS.ja.md`).
-pub fn parse_file(path: &Path, lang: Lang) -> Result<ParseResult, AstarsError> {
+/// Read `path`, decode it as `encoding` (a WHATWG Encoding Standard label,
+/// e.g. `"utf-8"`, `"shift_jis"`), and parse the result as `lang`. Decoding
+/// an encoding other than UTF-8 always produces valid UTF-8 (`encoding_rs`
+/// decodes straight into a Rust `String`), so the bytes `parse_bytes` sees
+/// are always clean - unlike `parse_bytes` called directly, there is no
+/// lossy replacement path here except for malformed byte sequences *within*
+/// the declared encoding (mirrors the Python prototype's
+/// `parse_file(..., encoding=...)`; see `docs/SOURCE_MAPPING_PLAN.ja.md`'s
+/// "SourceUnit.source").
+pub fn parse_file(path: &Path, lang: Lang, encoding: &str) -> Result<ParseResult, AstarsError> {
     let bytes = std::fs::read(path).map_err(AstarsError::Io)?;
-    Ok(parse_bytes(&bytes, lang))
+    let encoding = encoding_rs::Encoding::for_label(encoding.as_bytes())
+        .ok_or_else(|| AstarsError::UnsupportedEncoding(encoding.to_string()))?;
+    let (decoded, _actual_encoding, _had_malformed_sequences) = encoding.decode(&bytes);
+    Ok(parse_bytes(decoded.as_bytes(), lang))
 }
 
 #[cfg(test)]
@@ -119,7 +134,7 @@ mod tests {
         let path = dir.join(format!("astars-core-parse-file-test-{}.py", std::process::id()));
         std::fs::write(&path, "x = 1\n").unwrap();
 
-        let result = parse_file(&path, Lang::Python).expect("parse_file should succeed");
+        let result = parse_file(&path, Lang::Python, "utf-8").expect("parse_file should succeed");
         std::fs::remove_file(&path).unwrap();
 
         assert_eq!(result.lang, Lang::Python);
@@ -129,8 +144,41 @@ mod tests {
     #[test]
     fn parse_file_reports_io_error_for_missing_path() {
         let path = std::env::temp_dir().join("astars-core-definitely-does-not-exist.py");
-        let err = parse_file(&path, Lang::Python).expect_err("missing file should error");
+        let err = parse_file(&path, Lang::Python, "utf-8").expect_err("missing file should error");
         assert!(matches!(err, AstarsError::Io(_)));
+    }
+
+    #[test]
+    fn parse_file_decodes_non_utf8_encoding() {
+        // "x = 1  # こんにちは\n" encoded as Shift-JIS - a non-UTF-8 encoded
+        // Python source file, as the "encoding" parameter is meant to handle.
+        let (shift_jis_bytes, _, had_errors) =
+            encoding_rs::SHIFT_JIS.encode("x = 1  # こんにちは\n");
+        assert!(!had_errors, "test fixture text must be representable in Shift-JIS");
+
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("astars-core-parse-file-sjis-test-{}.py", std::process::id()));
+        std::fs::write(&path, &shift_jis_bytes).unwrap();
+
+        let result =
+            parse_file(&path, Lang::Python, "shift_jis").expect("parse_file should succeed");
+        std::fs::remove_file(&path).unwrap();
+
+        let source = result.tree.source_of(result.tree.root());
+        assert!(source.contains("こんにちは"));
+    }
+
+    #[test]
+    fn parse_file_reports_error_for_unknown_encoding_label() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("astars-core-parse-file-badenc-test-{}.py", std::process::id()));
+        std::fs::write(&path, "x = 1\n").unwrap();
+
+        let err = parse_file(&path, Lang::Python, "not-a-real-encoding")
+            .expect_err("unknown encoding label should error");
+        std::fs::remove_file(&path).unwrap();
+
+        assert!(matches!(err, AstarsError::UnsupportedEncoding(label) if label == "not-a-real-encoding"));
     }
 
     #[test]

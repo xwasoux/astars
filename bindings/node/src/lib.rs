@@ -249,11 +249,14 @@ pub fn parse_bytes(source: napi::bindgen_prelude::Buffer, lang: JsLang) -> JsSyn
     JsSyntaxTree::new(result.lang.into(), result.tree)
 }
 
-/// `parseFile(path, lang) -> JsSyntaxTree`: reads `path` and parses it (see
-/// `astars_core::parse_file`). Throws on an I/O failure.
+/// `parseFile(path, lang, encoding = "utf-8") -> JsSyntaxTree`: reads `path`,
+/// decodes it as `encoding` (a WHATWG Encoding Standard label), and parses
+/// the result (see `astars_core::parse_file`). Throws on an I/O failure or
+/// an unrecognized `encoding` label.
 #[napi]
-pub fn parse_file(path: String, lang: JsLang) -> napi::Result<JsSyntaxTree> {
-    let result = astars_core::parse_file(std::path::Path::new(&path), lang.into())
+pub fn parse_file(path: String, lang: JsLang, encoding: Option<String>) -> napi::Result<JsSyntaxTree> {
+    let encoding = encoding.as_deref().unwrap_or("utf-8");
+    let result = astars_core::parse_file(std::path::Path::new(&path), lang.into(), encoding)
         .map_err(|err| napi::Error::from_reason(err.to_string()))?;
     Ok(JsSyntaxTree::new(result.lang.into(), result.tree))
 }
