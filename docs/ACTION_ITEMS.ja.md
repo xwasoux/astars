@@ -40,11 +40,12 @@
   - `SourceSpan` の `start_point`/`end_point`(line/column)は v0 では追加しなかった(`replace` 内部の `point_at` helper はあるが非公開のまま)。公開 API としての point 情報は「次の判断が必要なもの」として `Decisions Needed` に積む
   - Python: `_astars.parse_bytes(source: bytes, lang)` / `_astars.parse_file(path: str, lang)`(I/O 失敗は `OSError`)/ `PySyntaxTree.diagnostics() -> list[PyDiagnostic]`(`severity` は `"error"` という plain string)を追加。Node: `parseBytes(source: Buffer, lang)` / `parseFile(path: string, lang)`(I/O 失敗は throw)/ `JsSyntaxTree.diagnostics() -> JsDiagnostic[]` を追加。両言語で `cargo test` / `clippy -- -D warnings` が通り、`maturin develop` / `npm run build:debug` 後に実際に non-UTF-8 bytes の parse・存在しないファイルの parse_file・構文エラーのある source の diagnostics を確認済み
 - `main` の最新 release は `v0.1.0`
-- `Decisions Needed` に残っていた4項目を決定した。(1) `astars-core` の複数 crate 分割は見送り、単一 crate のまま(現状困っていない)。(2) `pyproject.toml`/`package.json` 追加タイミングは実装済みのため項目として解消。(3) `SourceSpan` の `start_point`/`end_point`(line/column)公開は Not Now に回す(具体的な消費者が出てから)。(4) `parse_file` の非 UTF-8 encoding サポートは実装した — `encoding_rs` を追加し、`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベル(`"utf-8"`、`"shift_jis"` 等)で decode してから parse する形にした。decode は `encoding_rs::Encoding::decode` が常に valid UTF-8 の `String` を返すため、不明なラベルは `AstarsError::UnsupportedEncoding` で弾く。Python は `encoding="utf-8"` のデフォルト引数(不正ラベルは `ValueError`)、Node は `encoding?: string` の optional 引数(デフォルト `"utf-8"`)で公開し、両言語で実際に Shift-JIS ファイルの decode・不明ラベルのエラーを確認済み
+- `Decisions Needed` に残っていた4項目を決定した。(1) `astars-core` の複数 crate 分割は見送り、単一 crate のまま(現状困っていない)。(2) `pyproject.toml`/`package.json` 追加タイミングは実装済みのため項目として解消。(3) `SourceSpan` の `start_point`/`end_point`(line/column)公開は Not Now に回す(具体的な消費者が出てから) → **2026-10-23、方針転換して実装した(詳細下記)**。(4) `parse_file` の非 UTF-8 encoding サポートは実装した — `encoding_rs` を追加し、`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベル(`"utf-8"`、`"shift_jis"` 等)で decode してから parse する形にした。decode は `encoding_rs::Encoding::decode` が常に valid UTF-8 の `String` を返すため、不明なラベルは `AstarsError::UnsupportedEncoding` で弾く。Python は `encoding="utf-8"` のデフォルト引数(不正ラベルは `ValueError`)、Node は `encoding?: string` の optional 引数(デフォルト `"utf-8"`)で公開し、両言語で実際に Shift-JIS ファイルの decode・不明ラベルのエラーを確認済み
+- `SourceSpan` の point(line/column)情報を実装した。`astars-core` に `Point { line, column }`(0-based、byte column)を新設し、`SyntaxTree::point_at(byte_offset) -> Point` で任意の byte offset を変換できるようにした。既存の `replace` 内部ヘルパー(`tree_sitter::Point` を返す private 関数)と行/列スキャンのロジックを共有している(`line_col_at`)。`ByteSpan` 自体には point を持たせず(`Copy` で頻繁に使われる型を重くしないため)、`point_at` を span の start/end byte に対して個別に呼ぶ形にした。Python は `point_at(byte_offset) -> (int, int)`、Node は `pointAt(byteOffset) -> [number, number]` として公開し、両言語で実際に動作確認済み
 
 ## Next Action
 
-v0 scope(旧 Python `0.1.0` 相当の query API + 編集 primitive v1 + `parse_file` encoding 対応)は一通り実装・公開が完了した。次に着手する作業は未着手。
+v0 scope(旧 Python `0.1.0` 相当の query API + 編集 primitive v1 + `parse_file` encoding 対応 + point API)は一通り実装・公開が完了した。次に着手する作業は未着手。
 
 完了条件:
 
@@ -54,6 +55,7 @@ v0 scope(旧 Python `0.1.0` 相当の query API + 編集 primitive v1 + `parse_f
 - [x] `SyntaxTree` が Python / Node 両方の binding から実際に使える(`node_info` / `dump` を含む)
 - [x] `replace` + `unchanged_in` が `astars-core` で動作する(編集して、意図した箇所以外が変わっていないことを確認できる)
 - [x] `replace` + `unchanged_in` が Python / Node binding からも使える
+- [x] `point_at` が `astars-core` に実装され、Python / Node binding からも使える
 - [x] `parse_bytes` / `parse_file` / `diagnostics` が `astars-core` に実装され、Python / Node binding からも使える
 
 ## Decided: Release 0.1.1 は出さない
@@ -98,7 +100,6 @@ Rust 移行後も設計の参照点として記録を残す。
 
 次の項目は重要だが、具体的な消費者が出てくるまで着手しない。
 
-- `SourceSpan`(`ByteSpan`)に `start_point`/`end_point`(line/column)を public API として追加する。`point_at` 相当の内部ロジックは `SyntaxTree::replace` に既にあるが非公開のまま。Diagnostics 等で line/column 表示が必要になったときに着手する
 - 編集 primitive の本格実装(v1 の `replace`/`unchanged_in` を超える範囲: insert/delete 専用メソッド、Piece Table 化、系譜追跡、名前/kind アドレス指定。詳細は `EDIT_MODEL.ja.md` の「v1 のスコープ外」)
 - selector DSL
 - stable CST / `RawSyntaxNode` public API

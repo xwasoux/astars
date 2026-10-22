@@ -113,6 +113,14 @@ impl PySyntaxTree {
         self.inner.source_of(NodeId::from_u32(id))
     }
 
+    /// Converts a byte offset into this tree's source into a 0-based
+    /// `(line, column)` tuple (`column` is a byte column). Call it on both
+    /// ends of a `span_of` result to get a span's start/end points.
+    fn point_at(&self, byte_offset: usize) -> (usize, usize) {
+        let point = self.inner.point_at(byte_offset);
+        (point.line, point.column)
+    }
+
     /// One node's detail - a single, targeted FFI round trip.
     fn node_info(&self, id: u32) -> PyNodeInfo {
         PyNodeInfo::from_tree(&self.inner, NodeId::from_u32(id))
@@ -347,5 +355,15 @@ mod tests {
         let from_bytes = PySyntaxTree::from(astars_core::parse_bytes(b"x = 1\n", astars_core::Lang::Python).tree);
         let from_str = PySyntaxTree::from(astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
         assert_eq!(from_bytes.walk().len(), from_str.walk().len());
+    }
+
+    #[test]
+    fn point_at_is_zero_based_line_and_byte_column() {
+        let core_tree = astars_core::parse_str("x = 1\ny = 2\n", astars_core::Lang::Python).tree;
+        let py_tree = PySyntaxTree::from(core_tree);
+        assert_eq!(py_tree.point_at(0), (0, 0));
+        let second = py_tree.find("assignment")[1];
+        let (start_byte, _) = py_tree.span_of(second);
+        assert_eq!(py_tree.point_at(start_byte), (1, 0));
     }
 }

@@ -52,6 +52,19 @@ pub struct ByteSpan {
     pub end_byte: usize,
 }
 
+/// A 0-based `(line, column)` position into the source. `column` is a byte
+/// column, not a Unicode code point or grapheme cluster column (the resolved
+/// decision in `docs/SOURCE_MAPPING_PLAN.ja.md`'s "SourceSpan"). Kept
+/// separate from `ByteSpan` rather than folded into it: `ByteSpan` is `Copy`
+/// and used on every hot path (`span_of`, `EditResult.changed_ranges`
+/// overlap checks), while a `Point` is only computed on demand via
+/// `SyntaxTree::point_at`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Point {
+    pub line: usize,
+    pub column: usize,
+}
+
 #[derive(Debug, Clone)]
 struct SyntaxNode {
     // tree_sitter::Node::kind() is tied to the tree's lifetime, not actually
@@ -174,6 +187,16 @@ impl SyntaxTree {
     pub fn source_of(&self, id: NodeId) -> String {
         let span = self.span_of(id);
         String::from_utf8_lossy(&self.source[span.start_byte..span.end_byte]).into_owned()
+    }
+
+    /// Converts a byte offset into this tree's source into a 0-based
+    /// `(line, column)` `Point` (`column` is a byte column; see
+    /// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "SourceSpan"). Call it on both
+    /// ends of a `ByteSpan` to get a span's start/end points - there is no
+    /// combined helper for that yet, since nothing needs one in v0.
+    pub fn point_at(&self, byte_offset: usize) -> Point {
+        let (line, column) = line_col_at(&self.source, byte_offset);
+        Point { line, column }
     }
 
     pub fn root(&self) -> NodeId {
@@ -331,22 +354,29 @@ fn spans_overlap(a: ByteSpan, b: ByteSpan) -> bool {
     a.start_byte < b.end_byte && b.start_byte < a.end_byte
 }
 
-/// `tree_sitter::Point` (row, column) for a byte offset into `source`. v1
-/// scans linearly - fine for a single edit call, not optimized for repeated
-/// use (see EDIT_MODEL.ja.md: Piece Table work is deferred, not v1 scope).
-fn point_at(source: &[u8], byte_offset: usize) -> tree_sitter::Point {
-    let mut row = 0;
+/// 0-based `(line, column)` for a byte offset into `source`, scanning
+/// linearly - fine for an occasional lookup (a single edit call, or
+/// rendering one diagnostic), not optimized for repeated/bulk use (see
+/// EDIT_MODEL.ja.md: Piece Table work is deferred, not v1 scope). Shared by
+/// `point_at` (the `tree_sitter::Point` used internally by `replace`) and
+/// `SyntaxTree::point_at` (the public `Point`), so the scan logic lives in
+/// exactly one place.
+fn line_col_at(source: &[u8], byte_offset: usize) -> (usize, usize) {
+    let mut line = 0;
     let mut line_start = 0;
     for (i, &b) in source[..byte_offset].iter().enumerate() {
         if b == b'\n' {
-            row += 1;
+            line += 1;
             line_start = i + 1;
         }
     }
-    tree_sitter::Point {
-        row,
-        column: byte_offset - line_start,
-    }
+    (line, byte_offset - line_start)
+}
+
+/// `tree_sitter::Point` (row, column) for a byte offset into `source`.
+fn point_at(source: &[u8], byte_offset: usize) -> tree_sitter::Point {
+    let (row, column) = line_col_at(source, byte_offset);
+    tree_sitter::Point { row, column }
 }
 
 /// The `Point` reached after inserting `text` starting at `start`.
@@ -432,6 +462,26 @@ mod tests {
         let id = tree.find("function_definition")[0];
         let span = tree.span_of(id);
         assert_eq!(&source[span.start_byte..span.end_byte], tree.source_of(id));
+    }
+
+    #[test]
+    fn point_at_is_zero_based_line_and_byte_column() {
+        let source = "x = 1\ny = 2\n";
+        let tree = parse_str(source, Lang::Python).tree;
+
+        assert_eq!(tree.point_at(0), Point { line: 0, column: 0 });
+        // "y" is the first byte of the second line
+        let y_offset = source.find('y').unwrap();
+        assert_eq!(tree.point_at(y_offset), Point { line: 1, column: 0 });
+    }
+
+    #[test]
+    fn point_at_matches_second_assignment_span_start() {
+        let source = "x = 1\ny = 2\n";
+        let tree = parse_str(source, Lang::Python).tree;
+        let second = tree.find("assignment")[1];
+        let span = tree.span_of(second);
+        assert_eq!(tree.point_at(span.start_byte), Point { line: 1, column: 0 });
     }
 
     #[test]

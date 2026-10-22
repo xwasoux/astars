@@ -1,7 +1,7 @@
 //! Astars core engine: parse / normalize / map / query / edit.
 //!
 //! This crate's public surface is `Lang`, `ParseResult`, `SyntaxTree` (+
-//! `NodeId`, `ByteSpan`, `EditResult`, `Diagnostic`, `Severity`), and
+//! `NodeId`, `ByteSpan`, `Point`, `EditResult`, `Diagnostic`, `Severity`), and
 //! `parse_str` / `parse_bytes` / `parse_file` - see the "astars-core" class
 //! diagram in `docs/architecture/ARCHITECTURE.ja.md` for the design this
 //! module implements, and `docs/STRATEGY.ja.md` for the design bets it
@@ -13,7 +13,7 @@ mod parse;
 mod syntax;
 
 pub use diagnostics::{Diagnostic, Severity};
-pub use syntax::{ByteSpan, EditResult, NodeId, SyntaxTree};
+pub use syntax::{ByteSpan, EditResult, NodeId, Point, SyntaxTree};
 
 use parse::ParseAdapter;
 use std::path::Path;

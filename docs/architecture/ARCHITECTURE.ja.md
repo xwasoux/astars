@@ -38,6 +38,11 @@ classDiagram
         +start_byte usize
         +end_byte usize
     }
+    class Point {
+        <<value type>>
+        +line usize
+        +column usize
+    }
     class NodeId {
         <<value type>>
         +as_u32() u32
@@ -67,6 +72,7 @@ classDiagram
         +node_at(offset) Option~NodeId~
         +span_of(id) ByteSpan
         +source_of(id) String
+        +point_at(byte_offset) Point
         +root() NodeId
         +lang() Lang
         +kind_of(id) String
@@ -104,6 +110,7 @@ classDiagram
     ParseResult --> Lang
     SyntaxTree *-- SyntaxNode
     SyntaxTree --> NodeId
+    SyntaxTree ..> Point
     SyntaxNode --> NodeId
     SyntaxNode --> ByteSpan
     SyntaxTree ..> EditResult
@@ -119,6 +126,7 @@ classDiagram
 - `source_of` は lossy UTF-8 decode(`parse_bytes` が非 UTF-8 を受け付けるため)
 - `EditResult.changed_ranges` は private。`unchanged_in` は `NodeId` 等価ではなく byte span の overlap で判定する(新旧 tree は別 arena で `NodeId` を直接比較できないため)
 - `Diagnostic.span` は non-optional(v0 の発生源が tree-sitter の `ERROR`/`MISSING` node のみのため)。`Severity` は v0 では `Error` の1 variant のみ
+- `point_at` は `ByteSpan` の start/end byte に対して個別に呼ぶ(`ByteSpan` 自体に point は持たせない)。`line`/`column` は 0-based、`column` は byte column(Unicode code point や grapheme cluster ではない)。`replace` 内部の `tree_sitter::Point` 変換とスキャンロジックを共有している
 
 #### bindings/python(crate `astars-py`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
 
@@ -153,6 +161,7 @@ classDiagram
         +node_at(offset) int or None
         +span_of(id) IntPair
         +source_of(id) str
+        +point_at(byte_offset) IntPair
         +node_info(id) PyNodeInfo
         +dump(id) list~PyNodeInfo~
         +replace(target, new_text) PyEditResult
@@ -224,6 +233,7 @@ classDiagram
         +nodeAt(offset) number or null
         +spanOf(id) number array
         +sourceOf(id) string
+        +pointAt(byteOffset) number array
         +nodeInfo(id) JsNodeInfo
         +dump(id) JsNodeInfo array
         +replace(target, newText) JsEditResult
@@ -450,8 +460,9 @@ consumer(Python / Node)が依存してよいもの:
 - [x] `SyntaxTree::source_of` の Unicode 境界対応(`&str` + `.expect()` で panic する実装から、`String::from_utf8_lossy` で U+FFFD 置換する実装に変更。byte offset 自体は常に正しいまま)
 - [x] Diagnostics(`astars_core::Diagnostic` / `Severity` を新設し、`SyntaxTree::diagnostics()` で tree-sitter の `ERROR` / `MISSING` node を公開)
 - [x] `parse_file` の非 UTF-8 encoding サポート(2026-10-23、`encoding_rs` を追加して実装。`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベルで decode してから parse する。不明なラベルは `AstarsError::UnsupportedEncoding` を返す)
+- [x] `SourceSpan` の point(line/column)情報(2026-10-23、`Point { line, column }`(0-based、byte column)と `SyntaxTree::point_at(byte_offset) -> Point` を追加)
 
-Python / Node 両 binding にも、`parse_bytes` / `parse_file`(encoding 引数込み)/ `diagnostics()` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
+Python / Node 両 binding にも、`parse_bytes` / `parse_file`(encoding 引数込み)/ `diagnostics()` / `point_at` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
 
 ### Non-Goals(v0 では扱わない)
 
@@ -459,7 +470,6 @@ Python / Node 両 binding にも、`parse_bytes` / `parse_file`(encoding 引数�
 - CST / `RawSyntaxNode` の stable public API 化
 - semantic analysis
 - Python 以外の対象言語
-- `SourceSpan` の `start_point`/`end_point`(line/column)の public API 化。`replace` 内部の `point_at` helper はあるが非公開のまま。具体的な消費者が出てから着手する(`ACTION_ITEMS.ja.md` の Not Now 参照)
 
 ## Open Questions
 

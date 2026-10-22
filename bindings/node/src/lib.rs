@@ -137,6 +137,15 @@ impl JsSyntaxTree {
         self.inner.source_of(NodeId::from_u32(id))
     }
 
+    /// Converts a byte offset into this tree's source into a 0-based
+    /// `[line, column]` pair (`column` is a byte column). Call it on both
+    /// ends of a `spanOf` result to get a span's start/end points.
+    #[napi]
+    pub fn point_at(&self, byte_offset: u32) -> Vec<u32> {
+        let point = self.inner.point_at(byte_offset as usize);
+        vec![point.line as u32, point.column as u32]
+    }
+
     /// One node's detail - a single, targeted FFI round trip.
     #[napi]
     pub fn node_info(&self, id: u32) -> JsNodeInfo {
@@ -328,5 +337,15 @@ mod tests {
         );
         let from_str = JsSyntaxTree::new(JsLang::Python, astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
         assert_eq!(from_bytes.walk().len(), from_str.walk().len());
+    }
+
+    #[test]
+    fn point_at_is_zero_based_line_and_byte_column() {
+        let core_tree = astars_core::parse_str("x = 1\ny = 2\n", astars_core::Lang::Python).tree;
+        let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
+        assert_eq!(js_tree.point_at(0), vec![0, 0]);
+        let second = js_tree.find("assignment".to_string())[1];
+        let span = js_tree.span_of(second);
+        assert_eq!(js_tree.point_at(span[0]), vec![1, 0]);
     }
 }
