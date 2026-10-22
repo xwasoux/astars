@@ -1,5 +1,5 @@
 /**
- * Astars Rust core - minimal usage example (Node binding).
+ * Astars Rust core - usage example (Node binding).
  *
  * Prerequisites (one-time build step, from bindings/node/):
  *   npm install
@@ -9,7 +9,10 @@
  *   node examples/node/basic-parse.js
  */
 
-const { parseStr, JsLang } = require('../../bindings/node/index.js');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { parseStr, parseBytes, parseFile, JsLang } = require('../../bindings/node/index.js');
 
 const SOURCE = `def greet(name):
     return f"Hello, {name}!"
@@ -44,6 +47,38 @@ function main() {
   const firstFunc = tree.find('function_definition')[0];
   const subtree = tree.dump(firstFunc);
   console.log(`\ndump() of the first function: ${subtree.length} nodes in one call`);
+
+  console.log('\npointAt (0-based line/column for a byte offset):');
+  const [line, column] = tree.pointAt(offset);
+  console.log(`  offset ${offset} ('Greeter') is at line ${line}, column ${column}`);
+
+  console.log('\nedit primitive (replace + unchangedIn):');
+  const edit = tree.replace(firstFunc, 'def greet(name):\n    return f"Hi, {name}!"\n');
+  const classDef = tree.find('class_definition')[0];
+  console.log(`  replaced greet() - new tree has ${edit.tree.walk().length} nodes`);
+  console.log(`  unchangedIn(class Greeter): ${tree.unchangedIn(classDef, edit)}`);
+  console.log(`  unchangedIn(greet, the node we replaced): ${tree.unchangedIn(firstFunc, edit)}`);
+
+  console.log('\nparseBytes (same source as a raw Buffer, not a string):');
+  const bytesTree = parseBytes(Buffer.from(SOURCE, 'utf-8'), JsLang.Python);
+  console.log(`  parsed ${bytesTree.walk().length} nodes (matches parseStr: ` +
+    `${bytesTree.walk().length === tree.walk().length})`);
+
+  console.log('\nparseFile (writing SOURCE to a temp file first):');
+  const tmpPath = path.join(os.tmpdir(), `astars-basic-parse-example-${process.pid}.py`);
+  fs.writeFileSync(tmpPath, SOURCE);
+  try {
+    const fileTree = parseFile(tmpPath, JsLang.Python);
+    console.log(`  parsed ${fileTree.walk().length} nodes from ${tmpPath}`);
+  } finally {
+    fs.unlinkSync(tmpPath);
+  }
+
+  console.log('\ndiagnostics (parsing a source with a syntax error):');
+  const broken = parseStr('def broken(:\n    pass\n', JsLang.Python);
+  for (const diag of broken.diagnostics()) {
+    console.log(`  [${diag.severity}] ${diag.message} at bytes ${diag.span}`);
+  }
 }
 
 main();

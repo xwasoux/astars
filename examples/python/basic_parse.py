@@ -1,4 +1,4 @@
-"""Astars Rust core - minimal usage example (Python binding).
+"""Astars Rust core - usage example (Python binding).
 
 Prerequisites (one-time build step, from bindings/python/):
     python3 -m venv .venv && source .venv/bin/activate
@@ -8,6 +8,9 @@ Prerequisites (one-time build step, from bindings/python/):
 Then run this file with that same venv active:
     python3 examples/python/basic_parse.py
 """
+
+import os
+import tempfile
 
 import _astars
 
@@ -44,6 +47,37 @@ def main():
     first_func = tree.find("function_definition")[0]
     subtree = tree.dump(first_func)
     print(f"\ndump() of the first function: {len(subtree)} nodes in one call")
+
+    print("\npoint_at (0-based line/column for a byte offset):")
+    line, column = tree.point_at(offset)
+    print(f"  offset {offset} ('Greeter') is at line {line}, column {column}")
+
+    print("\nedit primitive (replace + unchanged_in):")
+    edit = tree.replace(first_func, 'def greet(name):\n    return f"Hi, {name}!"\n')
+    class_def = tree.find("class_definition")[0]
+    print(f"  replaced greet() - new tree has {len(edit.tree.walk())} nodes")
+    print(f"  unchanged_in(class Greeter): {tree.unchanged_in(class_def, edit)}")
+    print(f"  unchanged_in(greet, the node we replaced): {tree.unchanged_in(first_func, edit)}")
+
+    print("\nparse_bytes (same source as raw bytes, not a str):")
+    bytes_tree = _astars.parse_bytes(SOURCE.encode("utf-8"), _astars.PyLang.Python).tree
+    print(f"  parsed {len(bytes_tree.walk())} nodes (matches parse_str: "
+          f"{len(bytes_tree.walk()) == len(tree.walk())})")
+
+    print("\nparse_file (writing SOURCE to a temp file first):")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write(SOURCE)
+        path = f.name
+    try:
+        file_tree = _astars.parse_file(path, _astars.PyLang.Python).tree
+        print(f"  parsed {len(file_tree.walk())} nodes from {path}")
+    finally:
+        os.remove(path)
+
+    print("\ndiagnostics (parsing a source with a syntax error):")
+    broken = _astars.parse_str("def broken(:\n    pass\n", _astars.PyLang.Python).tree
+    for diag in broken.diagnostics():
+        print(f"  [{diag.severity}] {diag.message} at bytes {diag.span}")
 
 
 if __name__ == "__main__":
