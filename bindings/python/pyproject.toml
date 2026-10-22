@@ -5,10 +5,10 @@ build-backend = "maturin"
 [project]
 name = "astars-py"
 version = "0.0.0"
-description = "PyO3 bindings for astars-core (spike; not the eventual `astars` package)."
+description = "PyO3 bindings for astars-core (module name: _astars; not the eventual `astars` package)."
 requires-python = ">=3.10"
 classifiers = [
-  "Development Status :: 1 - Planning",
+  "Development Status :: 4 - Beta",
   "Programming Language :: Rust",
   "Programming Language :: Python :: 3",
 ]

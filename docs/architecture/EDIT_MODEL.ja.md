@@ -6,7 +6,6 @@
 
 - [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
 - [../STRATEGY.ja.md](../STRATEGY.ja.md)
-- [../CONCEPTS.ja.md](../CONCEPTS.ja.md)(旧 Python 実装前提。`Edit Primitive` セクションの具体化が本書)
 - [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 
 この文書は、v0 scope の AST node 構造(`SyntaxTree`/`SyntaxNode`)に着手する前に、「木構造のノード操作と、それに追従するテキスト編集をどう実現するか」を整理したものである。データ構造そのものは [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) の「astars-core」クラス図の設計で実装済み。本書の後半(「編集 primitive(v1)の設計」節)は、そのデータ構造を前提に、操作7・8(編集 primitive と編集前後比較)を実装するための設計を追記したものである。
@@ -53,7 +52,7 @@ LLM が「関数 `hello` の本体を書き換えて」のように、diff や�
 1. 木全体(または大きな部分木)を丸ごと辿って描画する
 2. 編集前後で「このnodeは変わっていないか」をハイライトに使う
 
-### シナリオE: 構造的 diff(`astars-code-review`、2026-10-23 追加)
+### シナリオE: 構造的 diff(`astars-code-review`)
 
 git の前後コミットのような、`tree.edit()` 系譜で繋がっていない独立な2つの source(同じファイルの2バージョン)を比較し、node 単位で何が変わったかを知りたい。操作7・8(編集 primitive)が前提にしている「自分で `replace()` した1本の編集系譜」ではなく、すでに存在する2つの source を外から渡されて比較する点がシナリオA〜Dと異なる。
 
@@ -63,7 +62,7 @@ git の前後コミットのような、`tree.edit()` 系譜で繋がってい�
 
 ## 操作リスト
 
-シナリオから導出した、Astars core が支えるべき操作。実装状況は 2026-10-23 時点(`ACTION_ITEMS.ja.md` の「強みの実現状況」と対応)。
+シナリオから導出した、Astars core が支えるべき操作(`ACTION_ITEMS.ja.md` の「強みの実現状況」と対応)。
 
 ### v0 で実装済み
 
@@ -85,7 +84,7 @@ git の前後コミットのような、`tree.edit()` 系譜で繋がってい�
 9. **派生系譜の追跡**: この variant node は元のどの node から来たか(シナリオB で必須)
 10. **名前/kind ベースのアドレス指定**: byte offset とは別の軸で node を引く(シナリオA の核心。現状は `find(kind)` で候補を絞ってから利用者側で名前を確認する形に留まる)
 
-### 計画中(2026-10-23 追加。v1/v2 の二段階で進める)
+### 計画中(v1/v2 の二段階で進める)
 
 13. **独立な2木の構造的 diff**(シナリオE): `tree.edit()` 系譜で繋がっていない2つの source を比較し、node 単位で added/removed/unchanged を得る
     - **v1(暫定)**: 2つの source のテキスト diff(Myers diff)を `InputEdit` の列に変換し、`tree.edit()` + `changed_ranges()` という既存の編集 primitive の仕組みに乗せて実現する。node の対応付けは行わず、`changed_ranges` との byte span overlap だけで判定する(overlap すれば旧木側は removed、新木側は added。重ならなければ unchanged)。rename/move/modify の区別はできない
@@ -174,7 +173,7 @@ AWS が Kiro IDE 向けに AST ベースの構造化編集(`insert_node` / `repl
 
 上記の決定を元に、クラス図(`EditResult` と `SyntaxTree` の関係)とシーケンス図(`replace` 呼び出し時の処理の流れ: source 書き換え → `tree.edit()` → re-parse → `changed_ranges` 取得)を作り、実装に進む。
 
-## 構造的 diff(操作13)の設計(2026-10-23、計画中)
+## 構造的 diff(操作13)の設計(計画中)
 
 ### きっかけ
 

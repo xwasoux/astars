@@ -1,13 +1,11 @@
 # Astars アーキテクチャ
 
-ステータス: Rust core 実装中(v0 spike 段階)
+ステータス: Rust core v0 scope 完了
 
 関連文書:
 
 - [STRATEGY.ja.md](../STRATEGY.ja.md)
 - [ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
-- [API_STRATEGY.ja.md](../API_STRATEGY.ja.md)
-- [CONCEPTS.ja.md](../CONCEPTS.ja.md)
 - [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md): 編集時のテキスト/木の追従モデル(v0 scope の AST node 構造設計の前提)
 
 関連図:
@@ -451,16 +449,16 @@ consumer(Python / Node)が依存してよいもの:
 - [x] query API(`walk`, `find(kind)`, `node_at(byte_offset)`, `span_of`, `source_of`)
 - [x] `SyntaxTree` を Python / Node 両 binding に公開し、実際に動作確認済み(上の「bindings/python」/「bindings/node」クラス図。`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)
 
-### 残っている作業(v0 到達に必要)
+### 編集 primitive・診断・encoding 対応
 
-優先順位を変更した(2026-10-22、`ACTION_ITEMS.ja.md` 参照): AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進めた。以降のアイテムもすべて完了した。
+AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進めた(経緯は `ACTION_ITEMS.ja.md` / git log 参照)。
 
 - [x] **編集 primitive(v1)**: `SyntaxTree::replace` + `EditResult` + `unchanged_in`(設計は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」)。Python / Node 両方に公開済み
 - [x] `parse_bytes` / `parse_file` の追加(`ParseAdapter::parse` が `&[u8]` を受ける形に変更し、`parse_str` はその薄いラッパーにした。`parse_file` は `AstarsError::Io` を返す)
 - [x] `SyntaxTree::source_of` の Unicode 境界対応(`&str` + `.expect()` で panic する実装から、`String::from_utf8_lossy` で U+FFFD 置換する実装に変更。byte offset 自体は常に正しいまま)
 - [x] Diagnostics(`astars_core::Diagnostic` / `Severity` を新設し、`SyntaxTree::diagnostics()` で tree-sitter の `ERROR` / `MISSING` node を公開)
-- [x] `parse_file` の非 UTF-8 encoding サポート(2026-10-23、`encoding_rs` を追加して実装。`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベルで decode してから parse する。不明なラベルは `AstarsError::UnsupportedEncoding` を返す)
-- [x] `SourceSpan` の point(line/column)情報(2026-10-23、`Point { line, column }`(0-based、byte column)と `SyntaxTree::point_at(byte_offset) -> Point` を追加)
+- [x] `parse_file` の非 UTF-8 encoding サポート(`encoding_rs` を追加して実装。`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベルで decode してから parse する。不明なラベルは `AstarsError::UnsupportedEncoding` を返す)
+- [x] `SourceSpan` の point(line/column)情報(`Point { line, column }`(0-based、byte column)と `SyntaxTree::point_at(byte_offset) -> Point` を追加)
 
 Python / Node 両 binding にも、`parse_bytes` / `parse_file`(encoding 引数込み)/ `diagnostics()` / `point_at` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
 

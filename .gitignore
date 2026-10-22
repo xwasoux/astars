@@ -165,13 +165,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Options
-# Directory 
-test/
+# prototype-python/: vendored tree-sitter grammar checkout used by tree_sitter
+# at runtime (not part of the frozen reference's own source)
 parsers/
 
 # File extentions
-astars/_version.py
 *.csv
 *.tsv
 *.json

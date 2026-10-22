@@ -1,7 +1,7 @@
 {
   "name": "@astars/native",
   "version": "0.0.0",
-  "description": "napi-rs bindings for astars-core (spike; not the eventual `astars` package).",
+  "description": "napi-rs bindings for astars-core (not the eventual `astars` / `@astars/core` package).",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {

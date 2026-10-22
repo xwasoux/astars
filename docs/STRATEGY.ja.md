@@ -462,14 +462,6 @@ Astars core は次のものではない。
 
 ## Open Questions
 
-- `SourceUnit` の public method set をどこまで v0 で固定するべきか
-- `CST` は public API に含めるべきか、それとも主に AST plus source mapping を使わせるべきか
-- `AParser`, `APruner`, `ATraverser` のような legacy API は削除、deprecated、thin wrapper として再導入のどれにすべきか
-- 現在の `usecase/` package は、`operations/` や `primitives/` のような engine-oriented な名前に変えるべきか
-- AST node kind はどの程度 language-neutral にするべきか
-- Python reference language としての最小 stable rule set は何か
-- stable ID について、edit や parse をまたいでどこまで保証するべきか
-- 既存 repository を `astars-engine` に rename するべきか、新 repository を作って移植するべきか
-- LLM coding agent 向けの構造化編集 interface を見据えて、edit primitive の設計時期を `0.2.0` 以降に留めるか、前倒しするか
-- 既存 Python 実装(prototype)を、Rust core 移行までどの程度維持・並行開発するか
-- binding 層(PyO3 / maturin、napi-rs)の設計と spike をいつ着手するか
+- `SyntaxTree` の CST(tree-sitter の生ノードを 1:1 で使う今の形)を stable public API にするか、将来 rule 正規化した AST 層を別に設けるか
+- `NodeId` の stable ID を、edit や再 parse をまたいでどこまで保証するか(`EDIT_MODEL.ja.md` 操作9・10 と関連)
+- 既存 repository を `astars-engine` に rename するべきか、現状の `astars` のままにするか

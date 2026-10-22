@@ -40,7 +40,7 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 
 ## 強みの実現状況
 
-`STRATEGY.ja.md` の「Core Differentiator」が主張する強みに対して、v0 完了時点でどこまで実装・証明できているかを 4 つに分けて追跡する(2026-10-23 新設。旧 `Not Now` を強み軸で再整理した)。
+`STRATEGY.ja.md` の「Core Differentiator」が主張する強みに対して、v0 完了時点でどこまで実装・証明できているかを 4 つに分けて追跡する。
 
 ### 1. Source-faithful かつ編集可能な構造(parse → query → edit → re-analyze の loop)
 
@@ -53,7 +53,7 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 - [x] 操作12(node を値として FFI 境界を越えられる制約)
 - [ ] 操作9(派生系譜の追跡 — variant が元のどの node から来たかを追跡する台帳。シナリオB で必須)
 - [ ] 操作10(名前/kind ベースのアドレス指定 — 「名前 `hello` の関数」を一発で引く。シナリオA の核心)
-- [ ] 操作13(独立な2木の構造的 diff。2026-10-23 新規追加、計画中。v1 は textual diff + 既存の `tree.edit()` 機構で代替し、v2 で GumTree による node matching に置き換える方針。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照)
+- [ ] 操作13(独立な2木の構造的 diff。計画中。v1 は textual diff + 既存の `tree.edit()` 機構で代替し、v2 で GumTree による node matching に置き換える方針。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照)
 
 土台(1-8, 11-12)はできているが、この強みを強みたらしめる 9・10・13 が手つかずのまま。
 

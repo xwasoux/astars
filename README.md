@@ -371,12 +371,8 @@ The current strategy and architecture notes are maintained in Japanese:
 
 - [Current Action Items](docs/ACTION_ITEMS.ja.md)
 - [Strategy](docs/STRATEGY.ja.md)
-- [API Strategy](docs/API_STRATEGY.ja.md)
-- [Concepts](docs/CONCEPTS.ja.md)
 - [Architecture](docs/architecture/ARCHITECTURE.ja.md)
 - [Edit Model](docs/architecture/EDIT_MODEL.ja.md)
 - [Source Mapping Plan](docs/SOURCE_MAPPING_PLAN.ja.md)
-- [Migration](docs/MIGRATION.ja.md)
 - [Release Strategy](docs/RELEASE_STRATEGY.ja.md)
-- [v0 Plan](docs/V0_PLAN.ja.md)
 - [Next Release Plan](docs/NEXT_RELEASE_PLAN.ja.md)

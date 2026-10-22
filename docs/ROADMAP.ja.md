@@ -45,73 +45,7 @@ Python reference path が安定したら、second language を使って adapter 
 
 ## 近い戦略
 
-> **2026-10-16時点の注記**: [STRATEGY.ja.md](STRATEGY.ja.md) で core engine の実装言語を Rust とする方針を確定した。以下の `0.1.1` / `0.2.0` および Phase 1〜5 は Python 実装を前提に書かれており、Rust 移行を踏まえた再設計が必要である。直近の action item は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) を参照する。Python source mapping 安定化(`0.2.0` primary theme)は、再設計までのあいだ一時停止する。
-
-### Release 0.1.1: Maintenance
-
-`0.1.1` は、`0.1.0` の public API を大きく広げず、release 品質と導入時の摩擦を下げるための patch release とする。
-
-主な対象:
-
-- documentation status の整理
-- release tooling の改善
-- packaging metadata の確認
-- clean install / smoke test 手順の整理
-- public API regression の補強
-
-### Release 0.2.0: Engine Capability
-
-`0.2.0` は、downstream package がより自然に Astars を使えるようにするための minor release とする。
-
-候補:
-
-- query / traversal の整理
-- source model / source mapping の安定化
-- extension-level contract の文書化
-- public node interface の強化
-- edit primitive の設計 spike
-- downstream prototype による検証
-
-`0.2.0` の primary theme は source mapping 安定化とし、詳細は [SOURCE_MAPPING_PLAN.ja.md](SOURCE_MAPPING_PLAN.ja.md) で管理する。
-
-### Phase 1: Engine Surface を安定させる
-
-- public API を定義する
-- `AParser` のような legacy name を compatibility shim として残すか判断する
-- runtime dependency が正しく install されるように package metadata を整える
-- README と examples を新 API に合わせる
-- clean environment で basic parse/query workflow が動くようにする
-- `astars-engine` への repository/package migration plan を決める
-
-### Phase 2: Core Model を安定させる
-
-- `RawSyntaxNode`, CST, AST, `SyntaxGraph` の役割を明確にする
-- CST を public API とするか、主に internal/debugging support とするか判断する
-- 複数の child selector が同じ attribute を対象にする場合の rule semantics を直す
-- source span mapping と AST construction の test を追加する
-
-### Phase 3: Engine Operations を定義する
-
-- traversal primitive を追加する
-- query primitive を追加する
-- source extraction primitive を追加する
-- generic edit/transform primitive を追加する
-- domain-specific analysis strategy は core に入れない
-
-### Phase 4: Ecosystem に備える
-
-- `astars` と `astars-*` package の境界を文書化する
-- downstream analysis module 向けの extension point を定義する
-- 最小の downstream example package または example project を作る
-- application-specific dependency を engine に追加しない
-
-### Phase 5: Language Expansion に備える
-
-- language adapter contract を文書化する
-- AST rule contract を文書化する
-- Java などを second-language validation target として扱う
-- Python reference path が安定する前に広い multi-language support を約束しない
-
+version ごとの release scope は [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)、直近の action item は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) を参照する。
 
 ## 成功 / 失敗シグナル
 

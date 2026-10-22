@@ -1,29 +1,29 @@
 # Changelog
 
-## 0.1.1 - Unreleased
+## 0.2.0 - Unreleased
 
-Astars 0.1.1 is planned as a release-process polish update for the v0.1 line.
-It does not change the v0 public API.
+Astars 0.2.0 is the first release of the Rust core (`crates/astars-core`) and
+its Python (`bindings/python`, module `_astars`) and Node.js
+(`bindings/node`, `@astars/native`) bindings. It replaces the pure-Python
+`astars` 0.1.0 implementation as the actively developed line; see
+`prototype-python/README.md` for the frozen 0.1.0 reference.
 
 ### Added
 
-- `checkInstall.sh` for clean install smoke tests from local wheel artifacts,
-  TestPyPI, or PyPI.
+- `parse_str` / `parse_bytes` / `parse_file` (with WHATWG encoding support)
+- `SyntaxTree` query API: `walk`, `find(kind)`, `node_at(offset)`,
+  `span_of`, `source_of`, `point_at(byte_offset)`
+- Edit primitive (v1): `replace(target, new_text)` + `unchanged_in(id, edit)`
+- Parser-recovery diagnostics (`ERROR`/`MISSING` nodes)
+- Python and Node.js examples covering the full v0 surface
 
-### Changed
+### Known Limitations
 
-- Improved `checkPypi.sh` and `registPypi.sh` error messages when release
-  dependencies such as `build` or `twine` are missing.
-- Updated the release checklist to use `checkPypi.sh`, `checkInstall.sh`, and
-  `registPypi.sh` as the canonical release verification flow.
-- Refreshed Japanese strategy and release documents for the post-`0.1.0`
-  project state.
-
-### Verification
-
-- Public API test suite passes.
-- Local wheel clean install smoke test passes through `checkInstall.sh dist`.
-- Wheel and source distribution checks pass through `checkPypi.sh`.
+- Lineage tracking across edits and name/kind-based node addressing
+  (`EDIT_MODEL.ja.md` operations 9 and 10) are not included.
+- Structural diff between independently parsed trees (operation 13) is not
+  included.
+- No downstream `astars-*` package exists yet.
 
 ## 0.1.0 - 2026-06-01
 

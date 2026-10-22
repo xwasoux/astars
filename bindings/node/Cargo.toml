@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "napi-rs bindings for astars-core (placeholder; napi-rs wiring lands with the binding spike)."
+description = "napi-rs bindings for astars-core, published to npm as @astars/native."
 
 [lib]
 crate-type = ["cdylib", "rlib"]
