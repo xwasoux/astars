@@ -134,6 +134,42 @@ impl PySyntaxTree {
     fn __repr__(&self) -> String {
         format!("SyntaxTree(nodes={})", self.inner.walk().count())
     }
+
+    /// Replace `target`'s source span with `new_text`, producing a new
+    /// `PySyntaxTree` wrapped in a `PyEditResult`. `self` is untouched. See
+    /// `docs/architecture/EDIT_MODEL.ja.md` ("編集 primitive(v1)の設計").
+    fn replace(&self, target: u32, new_text: &str) -> PyEditResult {
+        let edit = self.inner.replace(NodeId::from_u32(target), new_text);
+        PyEditResult { inner: edit }
+    }
+
+    /// Did `id` (a node in `self`, the tree *before* some `edit`) survive
+    /// into `edit.tree` unchanged? `id` must come from `self`, not from
+    /// `edit.tree` - `NodeId`s from different trees are not comparable
+    /// (see `docs/architecture/EDIT_MODEL.ja.md`).
+    fn unchanged_in(&self, id: u32, edit: &PyEditResult) -> bool {
+        self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
+    }
+}
+
+/// Mirrors `astars_core::EditResult`. Holds the whole core `EditResult`
+/// (not just its public `tree` field) because `changed_ranges` stays
+/// private in `astars-core` - `PySyntaxTree::unchanged_in` needs the whole
+/// thing, so this type cannot be decomposed down to just a tree handle.
+#[pyclass]
+pub struct PyEditResult {
+    inner: astars_core::EditResult,
+}
+
+#[pymethods]
+impl PyEditResult {
+    /// The new tree. Clones `astars_core::SyntaxTree` (cheap-ish arena +
+    /// source copy) because `&self` can't move `inner.tree` out while still
+    /// needing `inner` intact afterward for `unchanged_in` calls.
+    #[getter]
+    fn tree(&self, py: Python<'_>) -> PyResult<Py<PySyntaxTree>> {
+        Py::new(py, PySyntaxTree::from(self.inner.tree.clone()))
+    }
 }
 
 /// Mirrors `astars_core::ParseResult`.
@@ -174,6 +210,7 @@ fn _astars(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyParseResult>()?;
     m.add_class::<PySyntaxTree>()?;
     m.add_class::<PyNodeInfo>()?;
+    m.add_class::<PyEditResult>()?;
     m.add_function(wrap_pyfunction!(parse_str, m)?)?;
     Ok(())
 }
@@ -214,5 +251,18 @@ mod tests {
         let root_id = py_tree.root_id();
         let dumped = py_tree.dump(root_id);
         assert_eq!(dumped.len(), py_tree.walk().len());
+    }
+
+    #[test]
+    fn replace_and_unchanged_in_round_trip() {
+        let core_tree = astars_core::parse_str("x = 1\ny = 2\n", astars_core::Lang::Python).tree;
+        let py_tree = PySyntaxTree::from(core_tree);
+        let assignments = py_tree.find("assignment");
+        assert_eq!(assignments.len(), 2);
+        let (first, second) = (assignments[0], assignments[1]);
+
+        let edit = py_tree.replace(first, "x = 99");
+        assert!(!py_tree.unchanged_in(first, &edit));
+        assert!(py_tree.unchanged_in(second, &edit));
     }
 }

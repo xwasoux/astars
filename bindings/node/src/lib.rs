@@ -156,6 +156,46 @@ impl JsSyntaxTree {
         }
         result
     }
+
+    /// Replace `target`'s source span with `new_text`, producing a new
+    /// `JsSyntaxTree` wrapped in a `JsEditResult`. `self` is untouched. See
+    /// `docs/architecture/EDIT_MODEL.ja.md` ("編集 primitive(v1)の設計").
+    #[napi]
+    pub fn replace(&self, target: u32, new_text: String) -> JsEditResult {
+        let edit = self.inner.replace(NodeId::from_u32(target), &new_text);
+        JsEditResult { inner: edit }
+    }
+
+    /// Did `id` (a node in `self`, the tree *before* some `edit`) survive
+    /// into `edit.tree` unchanged? `id` must come from `self`, not from
+    /// `edit.tree` - `NodeId`s from different trees are not comparable
+    /// (see `docs/architecture/EDIT_MODEL.ja.md`).
+    #[napi]
+    pub fn unchanged_in(&self, id: u32, edit: &JsEditResult) -> bool {
+        self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
+    }
+}
+
+/// Mirrors `astars_core::EditResult`. Holds the whole core `EditResult` (not
+/// just its public `tree` field) because `changed_ranges` stays private in
+/// `astars-core` - `JsSyntaxTree::unchanged_in` needs the whole thing, so
+/// this type cannot be decomposed down to just a tree handle.
+#[napi]
+pub struct JsEditResult {
+    inner: astars_core::EditResult,
+}
+
+#[napi]
+impl JsEditResult {
+    /// The new tree. Clones `astars_core::SyntaxTree` (cheap-ish arena +
+    /// source copy) because `&self` can't move `inner.tree` out while still
+    /// needing `inner` intact afterward for `unchanged_in` calls.
+    #[napi(getter)]
+    pub fn tree(&self) -> JsSyntaxTree {
+        let cloned = self.inner.tree.clone();
+        let lang = cloned.lang().into();
+        JsSyntaxTree::new(lang, cloned)
+    }
 }
 
 /// `parseStr(source, lang) -> JsSyntaxTree`: converts `JsLang` to
@@ -203,5 +243,18 @@ mod tests {
         let root_id = js_tree.root_id();
         let dumped = js_tree.dump(root_id);
         assert_eq!(dumped.len(), js_tree.walk().len());
+    }
+
+    #[test]
+    fn replace_and_unchanged_in_round_trip() {
+        let core_tree = astars_core::parse_str("x = 1\ny = 2\n", astars_core::Lang::Python).tree;
+        let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
+        let assignments = js_tree.find("assignment".to_string());
+        assert_eq!(assignments.len(), 2);
+        let (first, second) = (assignments[0], assignments[1]);
+
+        let edit = js_tree.replace(first, "x = 99".to_string());
+        assert!(!js_tree.unchanged_in(first, &edit));
+        assert!(js_tree.unchanged_in(second, &edit));
     }
 }

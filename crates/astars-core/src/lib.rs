@@ -1,7 +1,7 @@
 //! Astars core engine: parse / normalize / map / query / edit.
 //!
 //! This crate's public surface is `Lang`, `ParseResult`, `SyntaxTree` (+
-//! `NodeId`, `ByteSpan`), and `parse_str` - see
+//! `NodeId`, `ByteSpan`, `EditResult`), and `parse_str` - see
 //! `docs/architecture/syntax-tree-structure.drawio.svg` for the class diagram
 //! this module implements, and `docs/STRATEGY.ja.md` for the design bets it
 //! must honor: parser-isolated (no tree_sitter types in the public surface),
@@ -10,7 +10,7 @@
 mod parse;
 mod syntax;
 
-pub use syntax::{ByteSpan, NodeId, SyntaxTree};
+pub use syntax::{ByteSpan, EditResult, NodeId, SyntaxTree};
 
 use parse::ParseAdapter;
 

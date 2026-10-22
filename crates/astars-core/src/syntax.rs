@@ -51,7 +51,7 @@ pub struct ByteSpan {
     pub end_byte: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SyntaxNode {
     // tree_sitter::Node::kind() is tied to the tree's lifetime, not actually
     // 'static, so this is owned rather than borrowed (see EDIT_MODEL.ja.md /
@@ -65,6 +65,13 @@ struct SyntaxNode {
 
 /// Parse result's normalized structure: an arena of `SyntaxNode`, plus enough
 /// of the original parse to support future incremental edits.
+///
+/// `Clone` (`tree_sitter::Tree` is itself `Clone`, structurally shared) is
+/// needed by binding crates: `EditResult.tree` can only be read out once
+/// through `&EditResult` without consuming it, since `changed_ranges` stays
+/// private and binding wrappers must keep the whole `EditResult` alive to
+/// answer `unchanged_in` later.
+#[derive(Clone)]
 pub struct SyntaxTree {
     nodes: Vec<SyntaxNode>,
     root: NodeId,

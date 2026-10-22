@@ -31,11 +31,12 @@
 - `SyntaxTree` / `SyntaxNode` を実装した。設計は [architecture/syntax-tree-structure.drawio.svg](architecture/syntax-tree-structure.drawio.svg) のクラス図に対応している。`NodeId`(arena index)で node を値として持ち、v0 は 1 raw node = 1 `SyntaxNode`(rule 正規化なし)なので span は node に直接持たせた(`SyntaxGraph` 相当は不要)。`SyntaxTree` は `tree_sitter::Tree` を private field として保持し、将来の incremental edit(`EDIT_MODEL.ja.md`)に備えている。`walk` / `find(kind)` / `node_at(offset)` / `span_of` / `source_of` を実装し、EOF 境界・span/source 往復をテストで確認済み(`cargo test -p astars-core` で7件pass)。設計からの逸脱: `kind`/`field_name` は `&'static str` の予定だったが `tree_sitter::Node::kind()` が実際には tree の lifetime に紐づくため `String` に変更した。`ParseResult.node_count` は `tree: SyntaxTree` に置き換え、`bindings/python` / `bindings/node` は `tree.walk().count()` で計算する形に最小限追従(`SyntaxTree` を binding にどう公開するかは別ラウンド)
 - `SyntaxTree` を Python / Node binding に公開した。設計は [architecture/python-tree-binding.drawio.svg](architecture/python-tree-binding.drawio.svg) / [architecture/node-tree-binding.drawio.svg](architecture/node-tree-binding.drawio.svg) のクラス図に対応している。`astars-core` に `root()` / `kind_of()` / `field_name_of()` / `parent_of()` / `children_of()` という granular accessor を追加し(`NodeId::as_u32`/`from_u32` で FFI 境界を越える)、`PySyntaxTree`/`JsSyntaxTree`(wrapper)と `PyNodeInfo`/`JsNodeInfo`(DTO)を実装。`walk`/`find` は Rust 側の遅延 iterator を binding 層で `Vec` に collect してから返す(node 1個ごとに FFI を跨がない、`EDIT_MODEL.ja.md` 操作11)。`node_info`(1件)と `dump`(部分木一括)を両方用意。Python/Node 両方で実際に動作確認済み(`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)。**設計からの逸脱(Node 側のみ)**: 図では `JsParseResult`(`#[napi(object)]`)が `tree: JsSyntaxTree` を持つ想定だったが、napi-rs の `#[napi(object)]` は全 field に双方向変換を要求し `#[napi]` class を直接持てないため、`JsParseResult` を廃止して `lang` を `JsSyntaxTree` 自身の field(getter)に畳み込み、`parseStr()` が `JsSyntaxTree` を直接返す形にした。Python 側は `Py<PySyntaxTree>` でこの問題を素直に解決できたため、Python/Node で非対称な形になっている
 - AWS が Kiro IDE 向けに AST ベースの構造化編集(名前/kind セレクタ + insert/replace/delete)を公開し、LLM 呼び出し数・token 数・エラー率で実測効果を示した(2026-10-21、[参考](https://aws.amazon.com/jp/blogs/news/surgical-precision-with-ast/))。シナリオA の仮説の裏付けにはなるが、Kiro は特定 IDE に閉じた内製機能であり、(1) 複数ランタイムでの再利用性、(2) 編集を「結果を解析する loop の一部」として扱う点、は Astars 固有の強みとして残る。これを踏まえ、v0 scope の残作業(`parse_bytes`/`parse_file`/Diagnostics)より**編集 primitive(操作7)+ 編集前後比較(操作8)を Python/Node 両方に公開することを優先する**よう再優先順位付けした。設計方針は [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」に記載
+- 編集 primitive(v1)を Python / Node binding に公開した。`PySyntaxTree`/`JsSyntaxTree` に `replace(target, new_text)` / `unchanged_in(id, edit)` を追加し、`PyEditResult`/`JsEditResult`(`tree` getter)を新設(いずれも `astars_core::EditResult` を丸ごと保持し、`changed_ranges` が private のため `tree` だけに分解できない形)。Python は実装済みの `Py<PySyntaxTree>` パターン、Node は既存の `JsParseResult` 廃止パターンと同じ理由(napi-rs の `#[napi(object)]` が `#[napi]` class field を持てない)で `JsEditResult` も通常の `#[napi]` class にした。両言語で `cargo test` / `clippy -- -D warnings` が通り、`maturin develop` / `npm run build:debug` 後に実際に `x = 1\ny = 2` を `x = 99\ny = 2` に replace して `unchanged_in` の真偽が意図通り(編集対象: false / 無関係な node: true)になることを確認済み
 - `main` の最新 release は `v0.1.0`
 
 ## Next Action
 
-次に着手する作業は、編集 primitive(v1)を Python / Node binding に公開することである。`astars-core` 側の実装(`replace` / `EditResult` / `unchanged_in`)は完了した。
+編集 primitive(v1)は `astars-core` 実装・Python/Node binding 公開ともに完了した。次に着手するのは v0 scope の残作業である。
 
 - [x] `crates/astars-core` に tree-sitter 依存を追加し、文字列を parse して node 数を返す最小実装を作る
 - [x] `bindings/python`(`astars-py`)に pyo3 + maturin を wiring し、Python から呼び出せる最小 spike を作る
@@ -45,7 +46,7 @@
 - [x] AST node のデータ構造を設計・実装する(`SyntaxTree` / `SyntaxNode` / `NodeId` / `ByteSpan`)
 - [x] `SyntaxTree` を Python / Node binding に公開する(`PySyntaxTree`/`PyNodeInfo`、`JsSyntaxTree`/`JsNodeInfo`)
 - [x] 編集 primitive(v1): `SyntaxTree::replace` + `EditResult` + `unchanged_in` を `astars-core` に実装する(`cargo test -p astars-core` で10件pass。`replace`での削除時、`source_of(root())`が先頭の空行を含まないtree-sitter-pythonの挙動を発見しテストで明文化した)
-- [ ] 編集 primitive を Python / Node binding に公開する
+- [x] 編集 primitive を Python / Node binding に公開する(`PyEditResult`/`JsEditResult` + `replace`/`unchanged_in`。両言語の smoke test で動作確認済み)
 - [ ] v0 scope の残作業(`SourceText` の Unicode/encoding 境界、`parse_bytes` / `parse_file`、Diagnostics)— 編集 primitive の後に着手する
 
 完了条件:
@@ -55,7 +56,7 @@
 - [x] `walk` / `find` / `node_at` / `span_of` / `source_of` が `astars-core` に実装されている
 - [x] `SyntaxTree` が Python / Node 両方の binding から実際に使える(`node_info` / `dump` を含む)
 - [x] `replace` + `unchanged_in` が `astars-core` で動作する(編集して、意図した箇所以外が変わっていないことを確認できる)
-- [ ] `replace` + `unchanged_in` が Python / Node binding からも使える
+- [x] `replace` + `unchanged_in` が Python / Node binding からも使える
 
 ## Decided: Release 0.1.1 は出さない
 
