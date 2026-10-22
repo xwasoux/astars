@@ -9,58 +9,181 @@
 </p>
 
 Astars parses source code into an AST-like structure, lets users inspect and query
-that structure, and maps nodes back to their original source spans and source
-text. Astars is intended to be a small engine that downstream packages can build
-on, rather than a full analysis product by itself.
+that structure, map nodes back to their original source spans and source text, and
+apply a minimal source-aware edit primitive. Astars is intended to be a small
+engine that downstream packages can build on, rather than a full analysis product
+by itself.
 
 ## Project Status
 
-**Astars is migrating its core engine to Rust**, with Python and TypeScript as
-binding-based consumers (`crates/astars-core` + `bindings/python` + `bindings/node`
+**Astars's core engine is being rewritten in Rust** (`crates/astars-core`), with
+Python and Node.js as binding-based consumers (`bindings/python`, `bindings/node`
 in this repository). See [`docs/STRATEGY.ja.md`](docs/STRATEGY.ja.md) for the
 rationale and [`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) for current
-status. The previous pure-Python implementation (published as `astars` 0.1.0 on
-PyPI) is kept as a frozen reference under [`prototype-python/`](prototype-python/)
-and is not under active development.
+status.
 
-Astars 0.1.0 provides the first v0 public API.
+The Rust core has reached its v0 scope end-to-end through both bindings. It is
+**not yet published to PyPI or npm** - see [Build From Source](#build-from-source)
+below to try it. The previously published pure-Python implementation (`astars`
+0.1.0 on PyPI) is kept as a frozen reference under
+[`prototype-python/`](prototype-python/) and is no longer under active
+development; see [Installing the Previous Release](#installing-the-previous-release)
+if you want that version instead.
 
-The current v0 scope is intentionally small:
+The current v0 scope (Rust core):
 
-- parse Python source code
-- inspect AST-like nodes without touching parser-specific objects
-- find nodes by kind
-- map nodes to byte spans and source text
-- provide a stable entry point for downstream `astars-*` packages
+- parse Python source from a string, raw bytes, or a file (with encoding support)
+- inspect AST-like nodes - tree-sitter's raw CST, 1:1 - without touching
+  parser-specific objects directly
+- walk the tree, find nodes by kind, and locate the most specific node at a byte
+  offset
+- map nodes to byte spans, source text, and 0-based line/column positions
+- a minimal edit primitive: replace a node's source span, and ask whether another
+  node survived that edit unchanged
+- parser-recovery diagnostics (syntax errors)
 
 The following are outside the v0 scope:
 
-- source editing primitives
+- insert/delete-specific edit methods, a Piece Table, edit lineage tracking, and
+  name/kind-based node addressing (the planned v2 of the edit primitive)
+- a selector DSL
+- a stable CST / raw-node public API
 - semantic analysis
-- multi-language support
-- metrics, code review, pruning, or LLM-specific policies
-- stable compatibility for legacy `AParser`, `APruner`, or `ATraverser` APIs
+- languages other than Python
+- downstream packages themselves (`astars-metrics`, `astars-code-review`, etc.)
 
-## Installation
+## Build From Source
 
-Astars currently requires Python 3.10 or newer.
+Requires a recent Rust toolchain. Verify the core engine builds and tests on its
+own first:
 
-For the released package:
+```bash
+git clone https://github.com/xwasoux/astars.git
+cd astars
+cargo test --workspace
+```
+
+### Python binding
+
+```bash
+cd bindings/python
+python3 -m venv .venv && source .venv/bin/activate
+pip install maturin
+maturin develop
+python3 ../../examples/python/basic_parse.py
+```
+
+### Node binding
+
+```bash
+cd bindings/node
+npm install
+npm run build:debug
+node ../../examples/node/basic-parse.js
+```
+
+Both example scripts walk through the full v0 surface (query API, the edit
+primitive, `parse_bytes`/`parse_file`, diagnostics, and `point_at`) against the
+same sample source, so their output lines up one-to-one.
+
+## Quick Start
+
+Python, via `import _astars` (the eventual `import astars` will be a thin wrapper
+around this native module):
+
+```python
+import _astars
+
+tree = _astars.parse_str("def hello(name):\n    return name\n", _astars.PyLang.Python).tree
+
+function = tree.find("function_definition")[0]
+print(tree.span_of(function))      # (0, 32)
+print(tree.source_of(function))    # 'def hello(name):\n    return name'
+print(tree.point_at(0))            # (0, 0)
+```
+
+Node.js, via `@astars/native`:
+
+```js
+const { parseStr, JsLang } = require('@astars/native');
+
+const tree = parseStr('def hello(name):\n    return name\n', JsLang.Python);
+
+const [fn] = tree.find('function_definition');
+console.log(tree.spanOf(fn));   // [0, 32]
+console.log(tree.sourceOf(fn)); // 'def hello(name):\n    return name'
+console.log(tree.pointAt(0));   // [0, 0]
+```
+
+## Public API
+
+The core engine (`astars-core`) exposes `Lang`, `ParseResult`, `SyntaxTree` (+
+`NodeId`, `ByteSpan`, `Point`, `EditResult`, `Diagnostic`, `Severity`), and
+`parse_str` / `parse_bytes` / `parse_file`. Each binding mirrors this surface in
+its own idiom:
+
+- Python (`_astars`): `PyLang`, `PyParseResult`, `PySyntaxTree`, `PyNodeInfo`,
+  `PyEditResult`, `PyDiagnostic`, `parse_str` / `parse_bytes` / `parse_file`
+- Node (`@astars/native`): `JsLang`, `JsSyntaxTree`, `JsNodeInfo`, `JsEditResult`,
+  `JsDiagnostic`, `parseStr` / `parseBytes` / `parseFile`
+
+For the full method-level surface of each type, see the Mermaid class diagrams in
+[`docs/architecture/ARCHITECTURE.ja.md`](docs/architecture/ARCHITECTURE.ja.md)
+rather than this README, so there is a single place that stays in sync with the
+code.
+
+## Design Boundary
+
+Astars is an engine layer. It should answer questions such as:
+
+- What is the program structure of this source file?
+- Which nodes match this structural query?
+- Where did this node come from in the original source?
+- What source text corresponds to this node?
+- What changes if I edit this node, and what else is left untouched?
+
+Astars should not decide what a metric means, whether a code review finding is
+important, or which LLM evaluation policy should be applied. Those decisions
+belong in downstream packages such as `astars-metrics`, `astars-code-review`, or
+`astars-llm-eval`.
+
+## Development
+
+Rust workspace (`crates/astars-core`, `bindings/python`, `bindings/node`):
+
+```bash
+cargo test --workspace
+cargo clippy --workspace -- -D warnings
+```
+
+Rebuilding a binding after a core change:
+
+```bash
+# Python
+cd bindings/python && source .venv/bin/activate && maturin develop
+
+# Node
+cd bindings/node && npm run build:debug
+```
+
+Python prototype (frozen reference, in `prototype-python/`):
+
+```bash
+cd prototype-python
+python -m pytest
+```
+
+The previous release's public API is covered by
+`prototype-python/tests/test_public_api.py`.
+
+## Installing the Previous Release
+
+The last Python-only release (`astars` 0.1.0, pre-Rust-migration) is still
+installable from PyPI and works as published:
 
 ```bash
 pip install astars
 ```
-
-To try the previous pure-Python prototype from this repository (frozen reference,
-see Project Status above):
-
-```bash
-git clone https://github.com/xwasoux/astars.git
-cd astars/prototype-python
-pip install -e .
-```
-
-## Quick Start
 
 ```python
 import astars
@@ -90,73 +213,11 @@ def hello(name):
 Identifier
 ```
 
-## Public API
-
-Astars exposes the v0 API from the top-level `astars` package:
-
-```python
-import astars
-
-unit = astars.parse_file("example.py", lang="python")
-unit = astars.parse_str("x = 1\n", lang="python")
-unit = astars.parse_bytes(b"x = 1\n", lang="python")
-```
-
-Each parse function returns a `SourceUnit`.
-
-```python
-root = unit.root
-diagnostics = unit.diagnostics
-
-for node in unit.walk():
-    print(node.kind)
-
-functions = unit.find(kind="FunctionDef")
-node = unit.node_at(byte_offset=4)
-
-span = unit.span_of(functions[0])
-source_text = unit.source_of(functions[0])
-```
-
-Important public objects:
-
-- `astars.SourceUnit`
-- `astars.SourceSpan`
-- `astars.Diagnostic`
-- `astars.AstarsError`
-- `astars.UnsupportedLanguageError`
-- `astars.ParserUnavailableError`
-
-## Design Boundary
-
-Astars is an engine layer. It should answer questions such as:
-
-- What is the program structure of this source file?
-- Which nodes match this structural query?
-- Where did this node come from in the original source?
-- What source text corresponds to this node?
-
-Astars should not decide what a metric means, whether a code review finding is
-important, or which LLM evaluation policy should be applied. Those decisions
-belong in downstream packages such as `astars-metrics`, `astars-code-review`, or
-`astars-llm-eval`.
-
-## Development
-
-Rust workspace (`crates/astars-core`, `bindings/python`, `bindings/node`):
-
-```bash
-cargo test --workspace
-```
-
-Python prototype (frozen reference, in `prototype-python/`):
-
-```bash
-cd prototype-python
-python -m pytest
-```
-
-The v0 public API is covered by `prototype-python/tests/test_public_api.py`.
+Important public objects in that release: `astars.SourceUnit`,
+`astars.SourceSpan`, `astars.Diagnostic`, `astars.AstarsError`,
+`astars.UnsupportedLanguageError`, `astars.ParserUnavailableError`. This release
+is frozen; new development happens in the Rust core and its bindings described
+above.
 
 ## Design Documents
 
@@ -167,6 +228,7 @@ The current strategy and architecture notes are maintained in Japanese:
 - [API Strategy](docs/API_STRATEGY.ja.md)
 - [Concepts](docs/CONCEPTS.ja.md)
 - [Architecture](docs/architecture/ARCHITECTURE.ja.md)
+- [Edit Model](docs/architecture/EDIT_MODEL.ja.md)
 - [Source Mapping Plan](docs/SOURCE_MAPPING_PLAN.ja.md)
 - [Migration](docs/MIGRATION.ja.md)
 - [Release Strategy](docs/RELEASE_STRATEGY.ja.md)
