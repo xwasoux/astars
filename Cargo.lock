@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "astars-core"
-version = "0.0.0"
+version = "0.2.0"
 dependencies = [
  "encoding_rs",
  "tree-sitter",
@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "astars-node"
-version = "0.0.0"
+version = "0.2.0"
 dependencies = [
  "astars-core",
  "napi",
@@ -32,7 +32,7 @@ dependencies = [
 
 [[package]]
 name = "astars-py"
-version = "0.0.0"
+version = "0.2.0"
 dependencies = [
  "astars-core",
  "pyo3",
