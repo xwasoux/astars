@@ -25,7 +25,6 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 - 編集 primitive(v1): `replace(target, new_text)` + `unchanged_in(id, edit)`(`tree.edit()` + `changed_ranges` ベース、`EDIT_MODEL.ja.md` 参照)
 - diagnostics: parser recovery(`ERROR`/`MISSING` node)の公開
 - examples(`examples/python/basic_parse.py` / `examples/node/basic-parse.js`)を上記全機能のデモに更新済み
-- `main` の最新 release は `v0.1.0`(Python-only 時代の最終 release。Rust core は PyPI/npm に未公開、build from source のみ)
 
 2026-10-21、AWS が Kiro IDE 向けに AST ベースの構造化編集を公開したことを受け、v0 scope の残作業より編集 primitive(`EDIT_MODEL.ja.md` 操作7・8)の実装を優先する方針に転換した(経緯は git log 参照)。Kiro は特定 IDE に閉じた内製機能であり、複数ランタイムでの再利用性と「編集を結果解析 loop の一部として扱う」点は Astars 固有の強みとして残る、という判断による。
 
@@ -60,7 +59,7 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 ### 2. 複数ランタイムでの再利用性
 
 - [x] Python/Node 両 binding が v0 API 全体で完全にパリティ(実機で動作確認済み)
-- [ ] PyPI / npm への公開(現状 build from source のみ)
+- [ ] PyPI / npm への公開(`v0.2.0` を `main` に tag 済み、wheel/node package の release build とクリーンインストール検証も完了。実際の `maturin publish` / `npm publish` は PyPI/npm の認証情報待ちで止まっている — 詳細は `NEXT_RELEASE_PLAN.ja.md`)
 
 ### 3. LLM エージェント向け名前/kind ベース構造化編集
 

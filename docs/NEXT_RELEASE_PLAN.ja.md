@@ -10,18 +10,20 @@
 
 ## Current Baseline
 
-`feature/rust-core-migration` ブランチで、v0 scope(parse/query/edit primitive v1/diagnostics)が Rust core + Python/Node binding として実装・動作確認済みである。PyPI/npm へはまだ公開していない(build from source のみ)。詳細は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) の「v0 Scope: 完了」を参照。
+v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node binding として実装・動作確認済みで、`main` に `v0.2.0` として tag 済みである。詳細は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) の「v0 Scope: 完了」を参照。
 
 ## v0.2.0: 最初の Rust Release
 
 `v0.2.0` の目的は、エンジンの中身を増やすことではなく、すでに完成している v0 scope を実際に PyPI / npm へ公開することである。
 
-スコープ:
+スコープと進捗:
 
-- `astars-core` / `astars-py` / `astars-node` の version を `0.2.0` に揃える
-- Python wheel を `maturin build` で作り、PyPI へ publish する(module 名 `_astars`。将来の `import astars` package は別途)
-- Node package を `napi build --release` で作り、npm へ `@astars/native` として publish する
-- publish 手順を [RELEASE_STRATEGY.ja.md](RELEASE_STRATEGY.ja.md) に従って実行する
+- [x] `astars-core` / `astars-py` / `astars-node` の version を `0.2.0` に揃える
+- [x] Python wheel を `maturin build --release` で作り、クリーンな venv への install smoke test を通した
+- [x] Node package を `napi build --platform --release` で作り、example で動作確認した
+- [x] `main` に merge し、`v0.2.0` tag を打って push した
+- [ ] Python wheel を PyPI へ `maturin publish` する — PyPI API token がない環境では実行できず、停止中
+- [ ] Node package を npm へ `@astars/native` として `npm publish --access public` する — npm login/token がない環境では実行できず、停止中
 - 新機能は追加しない
 
 やらないこと:
