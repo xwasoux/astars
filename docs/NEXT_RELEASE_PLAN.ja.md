@@ -12,9 +12,9 @@
 
 v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node binding として実装・動作確認済みで、`main` に `v0.2.0` として tag 済みである。詳細は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) の「v0 Scope: 完了」を参照。
 
-## v0.2.0: 最初の Rust Release
+## v0.2.0: 最初の Rust Release(完了)
 
-`v0.2.0` の目的は、エンジンの中身を増やすことではなく、すでに完成している v0 scope を実際に PyPI / npm へ公開することである。
+`v0.2.0` の目的は、エンジンの中身を増やすことではなく、すでに完成している v0 scope を実際に PyPI / npm へ公開することだった。完了している。
 
 スコープと進捗:
 
@@ -23,7 +23,7 @@ v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node b
 - [x] Node package を `napi build --platform --release` で作り、example で動作確認した
 - [x] `main` に merge し、`v0.2.0` tag を打って push した
 - [x] Python wheel を PyPI へ `maturin publish` する(`astars-py` 0.2.0 を publish 済み。project-scoped token は新規 project には使えないため、初回は account-scoped token で publish した)
-- [ ] Node package を npm へ `@astars/native` として `npm publish --access public` する — npm login/token がない環境では実行できず、停止中
+- [x] Node package を npm へ `@astars/native` として `npm publish --access public` する(`@astars` organization が未作成だったため、npmjs.com で作成してから publish した)
 - 新機能は追加しない
 
 やらないこと:

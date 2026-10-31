@@ -76,34 +76,48 @@ downstream package も、まだ無い。各項目の正確な現状は
 
 ## Project Status / プロジェクトの状態
 
-**Astars's core engine is being rewritten in Rust** (`crates/astars-core`), with
+**Astars's core engine was rewritten in Rust** (`crates/astars-core`), with
 Python and Node.js as binding-based consumers (`bindings/python`, `bindings/node`
 in this repository). See [`docs/STRATEGY.ja.md`](docs/STRATEGY.ja.md) for the
 rationale and [`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) for current
 status.
 
-**Astars の core engine は Rust で書き直している最中**(`crates/astars-core`)で、
+**Astars の core engine は Rust で書き直した**(`crates/astars-core`)。
 Python と Node.js はその binding 経由の consumer という位置づけになる(この
 リポジトリの `bindings/python` / `bindings/node`)。方針の経緯は
 [`docs/STRATEGY.ja.md`](docs/STRATEGY.ja.md)、現在の状況は
 [`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) を参照。
 
-The Rust core has reached its v0 scope end-to-end through both bindings. It is
-**not yet published to PyPI or npm** - see [Build From Source](#build-from-source--ソースからビルドする)
-below to try it. The previously published pure-Python implementation (`astars`
-0.1.0 on PyPI) is kept as a frozen reference under
-[`prototype-python/`](prototype-python/) and is no longer under active
-development; see [Installing the Previous Release](#installing-the-previous-release--以前のリリースをインストールする)
-if you want that version instead.
+The Rust core has reached its v0 scope end-to-end through both bindings, and
+`v0.2.0` is published:
 
-Rust core は Python/Node 両 binding を通して v0 scope を一通り実装済みである。
-ただし **PyPI / npm へはまだ公開していない** — 試すには下の
-[Build From Source](#build-from-source--ソースからビルドする) を参照。以前
-公開していた純粋な Python 実装(PyPI 上の `astars` 0.1.0)は
+```bash
+pip install astars-py       # module name: _astars
+npm install @astars/native
+```
+
+The previously published pure-Python implementation (`astars` 0.1.0 on PyPI)
+is kept as a frozen reference under [`prototype-python/`](prototype-python/)
+and is no longer under active development; see
+[Installing the Previous Release](#installing-the-previous-release--以前のリリースをインストールする)
+if you want that version instead. To build from source instead of installing
+the published packages, see [Build From Source](#build-from-source--ソースからビルドする)
+below.
+
+Rust core は Python/Node 両 binding を通して v0 scope を一通り実装済みで、
+`v0.2.0` を公開済みである:
+
+```bash
+pip install astars-py       # module 名: _astars
+npm install @astars/native
+```
+
+以前公開していた純粋な Python 実装(PyPI 上の `astars` 0.1.0)は
 [`prototype-python/`](prototype-python/) に frozen reference として残しており、
 active development の対象ではない。そちらを使いたい場合は
 [Installing the Previous Release](#installing-the-previous-release--以前のリリースをインストールする)
-を参照。
+を参照。公開済みパッケージではなくソースからビルドしたい場合は、下の
+[Build From Source](#build-from-source--ソースからビルドする) を参照。
 
 The current v0 scope (Rust core):
 現在の v0 scope(Rust core):
