@@ -59,7 +59,7 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 ### 2. 複数ランタイムでの再利用性
 
 - [x] Python/Node 両 binding が v0 API 全体で完全にパリティ(実機で動作確認済み)
-- [ ] PyPI / npm への公開(`v0.2.0` を `main` に tag 済み、wheel/node package の release build とクリーンインストール検証も完了。実際の `maturin publish` / `npm publish` は PyPI/npm の認証情報待ちで止まっている — 詳細は `NEXT_RELEASE_PLAN.ja.md`)
+- [ ] PyPI / npm への公開(`astars-py` 0.2.0 は PyPI へ publish 済み。npm `@astars/native` は認証情報待ちで停止中 — 詳細は `NEXT_RELEASE_PLAN.ja.md`)
 
 ### 3. LLM エージェント向け名前/kind ベース構造化編集
 

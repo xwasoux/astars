@@ -22,7 +22,7 @@ v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node b
 - [x] Python wheel を `maturin build --release` で作り、クリーンな venv への install smoke test を通した
 - [x] Node package を `napi build --platform --release` で作り、example で動作確認した
 - [x] `main` に merge し、`v0.2.0` tag を打って push した
-- [ ] Python wheel を PyPI へ `maturin publish` する — PyPI API token がない環境では実行できず、停止中
+- [x] Python wheel を PyPI へ `maturin publish` する(`astars-py` 0.2.0 を publish 済み。project-scoped token は新規 project には使えないため、初回は account-scoped token で publish した)
 - [ ] Node package を npm へ `@astars/native` として `npm publish --access public` する — npm login/token がない環境では実行できず、停止中
 - 新機能は追加しない
 
