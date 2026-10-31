@@ -146,6 +146,17 @@ impl JsSyntaxTree {
         vec![point.line as u32, point.column as u32]
     }
 
+    /// The child of `id` whose field name is `fieldName` (e.g. `"name"` on
+    /// a `function_definition`, `"left"`/`"right"` on an `assignment`). To
+    /// find a node by name, combine with `find(kind)` and `sourceOf` - see
+    /// `docs/architecture/EDIT_MODEL.ja.md`'s "名前/kind アドレス指定(操作10)の設計".
+    #[napi]
+    pub fn child_by_field_name(&self, id: u32, field_name: String) -> Option<u32> {
+        self.inner
+            .child_by_field_name(NodeId::from_u32(id), &field_name)
+            .map(NodeId::as_u32)
+    }
+
     /// One node's detail - a single, targeted FFI round trip.
     #[napi]
     pub fn node_info(&self, id: u32) -> JsNodeInfo {
@@ -347,5 +358,29 @@ mod tests {
         let second = js_tree.find("assignment".to_string())[1];
         let span = js_tree.span_of(second);
         assert_eq!(js_tree.point_at(span[0]), vec![1, 0]);
+    }
+
+    #[test]
+    fn child_by_field_name_finds_function_by_name() {
+        let core_tree = astars_core::parse_str(
+            "def hello(name):\n    return name\n\ndef bye():\n    pass\n",
+            astars_core::Lang::Python,
+        )
+        .tree;
+        let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
+
+        let hello = js_tree
+            .find("function_definition".to_string())
+            .into_iter()
+            .find(|&id| {
+                js_tree
+                    .child_by_field_name(id, "name".to_string())
+                    .map(|n| js_tree.source_of(n) == "hello")
+                    .unwrap_or(false)
+            })
+            .expect("should find the function named hello");
+
+        assert_eq!(js_tree.source_of(hello), "def hello(name):\n    return name");
+        assert_eq!(js_tree.child_by_field_name(hello, "no_such_field".to_string()), None);
     }
 }

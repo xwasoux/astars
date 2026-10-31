@@ -33,6 +33,13 @@ function main() {
     console.log(`  [${start}:${end}] ${JSON.stringify(tree.sourceOf(id))}`);
   }
 
+  console.log("\nchildByFieldName (find the function named 'greet'):");
+  const greet = tree.find('function_definition').find((id) => {
+    const nameId = tree.childByFieldName(id, 'name');
+    return nameId !== null && tree.sourceOf(nameId) === 'greet';
+  });
+  console.log(`  found via find(kind) + childByFieldName(id, 'name'): ${JSON.stringify(tree.sourceOf(greet))}`);
+
   console.log('\nclasses:');
   for (const id of tree.find('class_definition')) {
     const info = tree.nodeInfo(id);

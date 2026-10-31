@@ -77,6 +77,7 @@ classDiagram
         +field_name_of(id) Option~String~
         +parent_of(id) Option~NodeId~
         +children_of(id) Vec~NodeId~
+        +child_by_field_name(id, field_name) Option~NodeId~
         +replace(target, new_text) EditResult
         +unchanged_in(id, edit) bool
         +diagnostics() Vec~Diagnostic~
@@ -125,6 +126,7 @@ classDiagram
 - `EditResult.changed_ranges` は private。`unchanged_in` は `NodeId` 等価ではなく byte span の overlap で判定する(新旧 tree は別 arena で `NodeId` を直接比較できないため)
 - `Diagnostic.span` は non-optional(v0 の発生源が tree-sitter の `ERROR`/`MISSING` node のみのため)。`Severity` は v0 では `Error` の1 variant のみ
 - `point_at` は `ByteSpan` の start/end byte に対して個別に呼ぶ(`ByteSpan` 自体に point は持たせない)。`line`/`column` は 0-based、`column` は byte column(Unicode code point や grapheme cluster ではない)。`replace` 内部の `tree_sitter::Point` 変換とスキャンロジックを共有している
+- `child_by_field_name` は `field_name_of` の逆方向(子 → 親から見た field 名)に対する、親 → 特定 field の子という向きの primitive。tree-sitter の grammar が既に持つ field 名(`name`、`left`/`right`、`body` 等)をそのまま公開するだけで、「名前」を特別扱いする概念は core に持ち込まない。「kind `function_definition` で名前が `hello` の node を探す」は `find(kind) + child_by_field_name(id, "name") + source_of` の組み合わせで呼び出し側が組み立てる(専用の `find_by_name` のような API は追加しない)
 
 #### bindings/python(crate `astars-py`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
 
@@ -160,6 +162,7 @@ classDiagram
         +span_of(id) IntPair
         +source_of(id) str
         +point_at(byte_offset) IntPair
+        +child_by_field_name(id, field_name) int or None
         +node_info(id) PyNodeInfo
         +dump(id) list~PyNodeInfo~
         +replace(target, new_text) PyEditResult
@@ -232,6 +235,7 @@ classDiagram
         +spanOf(id) number array
         +sourceOf(id) string
         +pointAt(byteOffset) number array
+        +childByFieldName(id, fieldName) number or null
         +nodeInfo(id) JsNodeInfo
         +dump(id) JsNodeInfo array
         +replace(target, newText) JsEditResult
