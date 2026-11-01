@@ -68,6 +68,15 @@ def main():
     print(f"  unchanged_in(class Greeter): {tree.unchanged_in(class_def, edit)}")
     print(f"  unchanged_in(greet, the node we replaced): {tree.unchanged_in(first_func, edit)}")
 
+    print("\ndiff_with (independent new source, not derived via tree.edit()):")
+    new_source = SOURCE.replace('return f"Hello, {name}!"', 'return f"Hi, {name}!"')
+    diff = tree.diff_with(new_source.encode("utf-8"))
+    print(f"  diffed against an edited copy - new tree has {len(diff.tree.walk())} nodes")
+    print(f"  unchanged_in(class Greeter, diff): {tree.unchanged_in(class_def, diff)}")
+    print(f"  unchanged_in(greet, diff): {tree.unchanged_in(first_func, diff)}")
+    new_greeter = diff.tree.find("class_definition")[0]
+    print(f"  diff.unchanged(class Greeter in new tree): {diff.unchanged(new_greeter)}")
+
     print("\nparse_bytes (same source as raw bytes, not a str):")
     bytes_tree = _astars.parse_bytes(SOURCE.encode("utf-8"), _astars.PyLang.Python).tree
     print(f"  parsed {len(bytes_tree.walk())} nodes (matches parse_str: "

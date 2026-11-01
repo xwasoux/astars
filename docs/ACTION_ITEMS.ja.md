@@ -52,9 +52,9 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 - [x] 操作12(node を値として FFI 境界を越えられる制約)
 - [x] 操作10(名前/kind ベースのアドレス指定: `child_by_field_name(id, field_name)`。tree-sitter の grammar が持つ field 名(`name`/`left`/`right`/`body` 等)をそのまま公開する primitive で、「名前 `hello` の関数」は `find(kind) + child_by_field_name(id, "name") + source_of` の組み合わせで引く。専用の `find_by_name` API は追加していない。Python/Node 両 binding で実機確認済み)
 - [ ] 操作9(派生系譜の追跡 — variant が元のどの node から来たかを追跡する台帳。シナリオB で必須)
-- [ ] 操作13(独立な2木の構造的 diff。計画中。v1 は textual diff + 既存の `tree.edit()` 機構で代替し、v2 で GumTree による node matching に置き換える方針。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照)
+- [x] 操作13 v1(独立な2木の構造的 diff: `SyntaxTree::diff_with(new_source) -> EditResult`。`similar` クレートによる line-based diff を `InputEdit` に変換し、reverse 順で `tree.edit()` に適用してから1回だけ再 parse する。新しい型は作らず既存の `EditResult` を返し、新木側の問い合わせ用に `EditResult::unchanged(id)` を追加。node matching(GumTree 的な対応付け)は持たず byte-range overlap のみの v1 スコープ。Python/Node 両 binding で実機確認済み。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照。v2 の GumTree 置き換えは未着手)
 
-土台(1-8, 10-12)はできている。残る 9・13 が手つかず。
+土台(1-8, 10-13 v1)はできている。残るは 9・13 v2。
 
 ### 2. 複数ランタイムでの再利用性
 

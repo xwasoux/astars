@@ -66,6 +66,15 @@ function main() {
   console.log(`  unchangedIn(class Greeter): ${tree.unchangedIn(classDef, edit)}`);
   console.log(`  unchangedIn(greet, the node we replaced): ${tree.unchangedIn(firstFunc, edit)}`);
 
+  console.log('\ndiffWith (independent new source, not derived via tree.edit()):');
+  const newSource = SOURCE.replace('return f"Hello, {name}!"', 'return f"Hi, {name}!"');
+  const diff = tree.diffWith(Buffer.from(newSource, 'utf-8'));
+  console.log(`  diffed against an edited copy - new tree has ${diff.tree.walk().length} nodes`);
+  console.log(`  unchangedIn(class Greeter, diff): ${tree.unchangedIn(classDef, diff)}`);
+  console.log(`  unchangedIn(greet, diff): ${tree.unchangedIn(firstFunc, diff)}`);
+  const newGreeter = diff.tree.find('class_definition')[0];
+  console.log(`  diff.unchanged(class Greeter in new tree): ${diff.unchanged(newGreeter)}`);
+
   console.log('\nparseBytes (same source as a raw Buffer, not a string):');
   const bytesTree = parseBytes(Buffer.from(SOURCE, 'utf-8'), JsLang.Python);
   console.log(`  parsed ${bytesTree.walk().length} nodes (matches parseStr: ` +

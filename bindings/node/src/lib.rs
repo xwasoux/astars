@@ -197,6 +197,17 @@ impl JsSyntaxTree {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
     }
 
+    /// Compares `self`'s source against `newSource` - two independent
+    /// sources, not connected by a `replace()` lineage (e.g. two versions
+    /// of the same file) - and returns a `JsEditResult` as if `newSource`
+    /// had been reached by editing `self`. See
+    /// `docs/architecture/EDIT_MODEL.ja.md` ("構造的 diff(操作13)の設計").
+    #[napi]
+    pub fn diff_with(&self, new_source: napi::bindgen_prelude::Buffer) -> JsEditResult {
+        let edit = self.inner.diff_with(&new_source);
+        JsEditResult { inner: edit }
+    }
+
     /// Parser-recovery diagnostics for this tree (`ERROR` / `MISSING` nodes
     /// tree-sitter produced while parsing), in preorder. See
     /// `docs/SOURCE_MAPPING_PLAN.ja.md` ("Diagnostics Span").
@@ -225,6 +236,14 @@ impl JsEditResult {
         let cloned = self.inner.tree.clone();
         let lang = cloned.lang().into();
         JsSyntaxTree::new(lang, cloned)
+    }
+
+    /// Did `id` (a node in `self.tree`) already exist, unchanged, before
+    /// the edit/diff? The symmetric counterpart of `unchangedIn`, checked
+    /// from the new tree's side instead of the old tree's side.
+    #[napi]
+    pub fn unchanged(&self, id: u32) -> bool {
+        self.inner.unchanged(NodeId::from_u32(id))
     }
 }
 
@@ -329,6 +348,28 @@ mod tests {
         let edit = js_tree.replace(first, "x = 99".to_string());
         assert!(!js_tree.unchanged_in(first, &edit));
         assert!(js_tree.unchanged_in(second, &edit));
+    }
+
+    #[test]
+    fn diff_with_and_unchanged_round_trip() {
+        let core_tree =
+            astars_core::parse_str("x = 1\ny = 2\nz = 3\n", astars_core::Lang::Python).tree;
+        let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
+        let assignments = js_tree.find("assignment".to_string());
+        assert_eq!(assignments.len(), 3);
+        let (first, second, third) = (assignments[0], assignments[1], assignments[2]);
+
+        let new_source: napi::bindgen_prelude::Buffer = b"x = 1\ny = 999\nz = 3\n".to_vec().into();
+        let diff = js_tree.diff_with(new_source);
+        assert!(js_tree.unchanged_in(first, &diff));
+        assert!(!js_tree.unchanged_in(second, &diff));
+        assert!(js_tree.unchanged_in(third, &diff));
+
+        let new_assignments = diff.inner.tree.find("assignment");
+        assert_eq!(new_assignments.len(), 3);
+        assert!(diff.unchanged(new_assignments[0].as_u32()));
+        assert!(!diff.unchanged(new_assignments[1].as_u32()));
+        assert!(diff.unchanged(new_assignments[2].as_u32()));
     }
 
     #[test]

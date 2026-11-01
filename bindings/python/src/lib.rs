@@ -171,6 +171,16 @@ impl PySyntaxTree {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
     }
 
+    /// Compares `self`'s source against `new_source` - two independent
+    /// sources, not connected by a `replace()` lineage (e.g. two versions
+    /// of the same file) - and returns a `PyEditResult` as if `new_source`
+    /// had been reached by editing `self`. See
+    /// `docs/architecture/EDIT_MODEL.ja.md` ("構造的 diff(操作13)の設計").
+    fn diff_with(&self, new_source: &[u8]) -> PyEditResult {
+        let edit = self.inner.diff_with(new_source);
+        PyEditResult { inner: edit }
+    }
+
     /// Parser-recovery diagnostics for this tree (`ERROR` / `MISSING` nodes
     /// tree-sitter produced while parsing), in preorder. See
     /// `docs/SOURCE_MAPPING_PLAN.ja.md` ("Diagnostics Span").
@@ -196,6 +206,13 @@ impl PyEditResult {
     #[getter]
     fn tree(&self, py: Python<'_>) -> PyResult<Py<PySyntaxTree>> {
         Py::new(py, PySyntaxTree::from(self.inner.tree.clone()))
+    }
+
+    /// Did `id` (a node in `self.tree`) already exist, unchanged, before
+    /// the edit/diff? The symmetric counterpart of `unchanged_in`, checked
+    /// from the new tree's side instead of the old tree's side.
+    fn unchanged(&self, id: u32) -> bool {
+        self.inner.unchanged(NodeId::from_u32(id))
     }
 }
 
@@ -349,6 +366,29 @@ mod tests {
         let edit = py_tree.replace(first, "x = 99");
         assert!(!py_tree.unchanged_in(first, &edit));
         assert!(py_tree.unchanged_in(second, &edit));
+    }
+
+    #[test]
+    fn diff_with_and_unchanged_round_trip() {
+        let core_tree =
+            astars_core::parse_str("x = 1\ny = 2\nz = 3\n", astars_core::Lang::Python).tree;
+        let py_tree = PySyntaxTree::from(core_tree);
+        let assignments = py_tree.find("assignment");
+        assert_eq!(assignments.len(), 3);
+        let (first, second, third) = (assignments[0], assignments[1], assignments[2]);
+
+        let diff = py_tree.diff_with(b"x = 1\ny = 999\nz = 3\n");
+        assert!(py_tree.unchanged_in(first, &diff));
+        assert!(!py_tree.unchanged_in(second, &diff));
+        assert!(py_tree.unchanged_in(third, &diff));
+
+        // `diff.inner` (not the `tree` getter, which needs a GIL token) to
+        // check the new-tree-side symmetric primitive without pyo3 ceremony.
+        let new_assignments = diff.inner.tree.find("assignment");
+        assert_eq!(new_assignments.len(), 3);
+        assert!(diff.unchanged(new_assignments[0].as_u32()));
+        assert!(!diff.unchanged(new_assignments[1].as_u32()));
+        assert!(diff.unchanged(new_assignments[2].as_u32()));
     }
 
     #[test]

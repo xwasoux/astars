@@ -263,7 +263,7 @@ impl SyntaxTree {
         let new_end_byte = span.start_byte + new_text.len();
         let start_position = point_at(&self.source, span.start_byte);
         let old_end_position = point_at(&self.source, span.end_byte);
-        let new_end_position = end_position_after_insert(start_position, new_text);
+        let new_end_position = end_position_after_insert(start_position, new_text.as_bytes());
 
         let mut edited_raw = self.raw.clone();
         edited_raw.edit(&tree_sitter::InputEdit {
@@ -290,19 +290,113 @@ impl SyntaxTree {
 
         EditResult {
             tree: SyntaxTree::from_tree_sitter(self.lang, new_raw, new_source),
+            // The literal old span we told tree-sitter was replaced - see
+            // `EditResult`'s doc comment for why this, and not
+            // `changed_ranges`, is what `unchanged_in` compares against.
+            old_changed_ranges: vec![span],
+            changed_ranges,
+        }
+    }
+
+    /// Compares `self`'s source against `new_source` - two independent
+    /// sources *not* connected by a `tree.edit()` lineage of their own (e.g.
+    /// two versions of the same file, like a git diff) - and returns an
+    /// `EditResult` as if `new_source` had been reached by editing `self`.
+    /// See EDIT_MODEL.ja.md's "構造的 diff(操作13)の設計".
+    ///
+    /// Unlike `replace`, the edit here is not known in advance: it is
+    /// recovered by diffing `self.source` against `new_source` line by line
+    /// (via the `similar` crate, operating on raw bytes rather than `&str`
+    /// so non-UTF-8 sources are fine - same policy as `parse_bytes`), then
+    /// replaying each changed hunk as a `tree.edit(InputEdit)` call before a
+    /// single re-parse. tree-sitter requires edits to be reported from the
+    /// end of the document towards the start when there is more than one,
+    /// so that an earlier (not-yet-applied) hunk's byte offsets - still
+    /// expressed in `self.source`'s original coordinates - stay valid: nothing
+    /// a reverse pass has touched so far is ever to the left of the hunk
+    /// about to be applied.
+    ///
+    /// `v1` does not match nodes between `self` and the result the way
+    /// GumTree-style tree-edit-distance would (see "v1 のスコープ外"):
+    /// `unchanged_in` (on `self`) and `EditResult::unchanged` (on the
+    /// result) only answer "did this byte range change", not "did this
+    /// node move/rename to become that one".
+    pub fn diff_with(&self, new_source: &[u8]) -> EditResult {
+        let old_starts = line_starts(&self.source);
+        let old_lines = lines_from_starts(&self.source, &old_starts);
+        let new_starts = line_starts(new_source);
+        let new_lines = lines_from_starts(new_source, &new_starts);
+
+        let ops = similar::capture_diff_slices(similar::Algorithm::Myers, &old_lines, &new_lines);
+        let hunks: Vec<(usize, usize, usize, usize)> = ops
+            .iter()
+            .filter(|op| !matches!(op, similar::DiffOp::Equal { .. }))
+            .map(|op| {
+                let old_range = op.old_range();
+                let new_range = op.new_range();
+                (
+                    old_starts[old_range.start],
+                    old_starts[old_range.end],
+                    new_starts[new_range.start],
+                    new_starts[new_range.end],
+                )
+            })
+            .collect();
+
+        let old_changed_ranges = hunks
+            .iter()
+            .map(|&(old_start, old_end, _, _)| ByteSpan { start_byte: old_start, end_byte: old_end })
+            .collect();
+
+        let mut edited_raw = self.raw.clone();
+        for &(old_start, old_end, new_start, new_end) in hunks.iter().rev() {
+            let new_content = &new_source[new_start..new_end];
+            let new_end_byte = old_start + new_content.len();
+            let start_position = point_at(&self.source, old_start);
+            let old_end_position = point_at(&self.source, old_end);
+            let new_end_position = end_position_after_insert(start_position, new_content);
+
+            edited_raw.edit(&tree_sitter::InputEdit {
+                start_byte: old_start,
+                old_end_byte: old_end,
+                new_end_byte,
+                start_position,
+                old_end_position,
+                new_end_position,
+            });
+        }
+
+        let mut parser = crate::parse::parser_for(self.lang);
+        let new_raw = parser
+            .parse(new_source, Some(&edited_raw))
+            .expect("astars-core: re-parse after diff failed");
+
+        let changed_ranges = edited_raw
+            .changed_ranges(&new_raw)
+            .map(|r| ByteSpan {
+                start_byte: r.start_byte,
+                end_byte: r.end_byte,
+            })
+            .collect();
+
+        EditResult {
+            tree: SyntaxTree::from_tree_sitter(self.lang, new_raw, new_source.to_vec()),
+            old_changed_ranges,
             changed_ranges,
         }
     }
 
     /// Did `id` (a node in `self`, the tree *before* `edit`) survive into
     /// `edit.tree` unchanged? Answered via byte-range overlap against
-    /// `edit`'s `changed_ranges`, not `NodeId` equality - a `NodeId` in
+    /// `edit`'s `old_changed_ranges` (not `edit.changed_ranges` - see
+    /// `EditResult`'s doc comment for why those are two different
+    /// coordinate systems), and not `NodeId` equality - a `NodeId` in
     /// `self` and a `NodeId` in `edit.tree` index two different arenas and
     /// are never comparable directly (see the module-level doc comment).
     pub fn unchanged_in(&self, id: NodeId, edit: &EditResult) -> bool {
         let span = self.span_of(id);
         !edit
-            .changed_ranges
+            .old_changed_ranges
             .iter()
             .any(|changed| spans_overlap(span, *changed))
     }
@@ -360,11 +454,42 @@ impl SyntaxTree {
     }
 }
 
-/// The result of `SyntaxTree::replace`: the new tree, plus enough to answer
-/// `unchanged_in` queries against the tree the edit started from.
+/// The result of `SyntaxTree::replace` or `SyntaxTree::diff_with`: the new
+/// tree, plus enough to answer `unchanged_in` (old-tree side) and
+/// `unchanged` (new-tree side) queries against the tree the edit (or diff)
+/// started from.
+///
+/// Two separate changed-range fields, not one, because `tree_sitter::Tree::
+/// changed_ranges` reports ranges in the *new* tree's byte coordinates (this
+/// is what `.edit()` is for: it reshuffles the old tree's own bookkeeping to
+/// match where everything would land post-edit, so the old and new trees
+/// can be walked and compared in one shared coordinate space). `self.tree`
+/// (post-edit) uses those same coordinates, so `changed_ranges` is correct
+/// for it as-is. But `SyntaxTree`'s arena (`self.nodes`, built once at
+/// construction) never gets that treatment - a `SyntaxTree` you already
+/// hold keeps its original spans forever, in the *old* document's byte
+/// coordinates. Comparing those directly against `changed_ranges` would
+/// silently misfire for any edit that changes length (the two coordinate
+/// spaces only coincide before the first edit point) - `old_changed_ranges`
+/// exists so `unchanged_in` has something in the matching coordinate space:
+/// the literal old-document byte ranges each edit (`replace`'s `target`
+/// span, or `diff_with`'s hunks) was told to replace.
 pub struct EditResult {
     pub tree: SyntaxTree,
+    old_changed_ranges: Vec<ByteSpan>,
     changed_ranges: Vec<ByteSpan>,
+}
+
+impl EditResult {
+    /// Did `id` (a node in `self.tree`, the tree produced by the edit)
+    /// already exist, unchanged, before the edit? The symmetric counterpart
+    /// of `SyntaxTree::unchanged_in`, checked from the new tree's side
+    /// instead of the old tree's side - see EDIT_MODEL.ja.md's "構造的
+    /// diff(操作13)の設計".
+    pub fn unchanged(&self, id: NodeId) -> bool {
+        let span = self.tree.span_of(id);
+        !self.changed_ranges.iter().any(|changed| spans_overlap(span, *changed))
+    }
 }
 
 fn spans_overlap(a: ByteSpan, b: ByteSpan) -> bool {
@@ -396,9 +521,11 @@ fn point_at(source: &[u8], byte_offset: usize) -> tree_sitter::Point {
     tree_sitter::Point { row, column }
 }
 
-/// The `Point` reached after inserting `text` starting at `start`.
-fn end_position_after_insert(start: tree_sitter::Point, text: &str) -> tree_sitter::Point {
-    let bytes = text.as_bytes();
+/// The `Point` reached after inserting `bytes` starting at `start`. Takes
+/// raw bytes (not `&str`) so it works for `diff_with`'s hunks too, which may
+/// come from non-UTF-8 `new_source` (same `parse_bytes` policy as elsewhere
+/// in this module).
+fn end_position_after_insert(start: tree_sitter::Point, bytes: &[u8]) -> tree_sitter::Point {
     match bytes.iter().rposition(|&b| b == b'\n') {
         None => tree_sitter::Point {
             row: start.row,
@@ -409,6 +536,32 @@ fn end_position_after_insert(start: tree_sitter::Point, text: &str) -> tree_sitt
             column: bytes.len() - (last_newline + 1),
         },
     }
+}
+
+/// Byte offset where each line of `source` begins, plus a final sentinel
+/// equal to `source.len()` - so `starts[i]..starts[i+1]` is line `i`'s byte
+/// range for `i` in `0..starts.len()-1`, and a line index equal to
+/// `starts.len() - 1` (one past the last real line) safely means "end of
+/// source". Lines keep their trailing `\n` (if any), matching Python's
+/// `str.splitlines(keepends=True)`, so concatenating all lines reproduces
+/// `source` exactly - the hunk byte math in `diff_with` depends on that.
+fn line_starts(source: &[u8]) -> Vec<usize> {
+    let mut starts = vec![0usize];
+    for (i, &b) in source.iter().enumerate() {
+        if b == b'\n' {
+            starts.push(i + 1);
+        }
+    }
+    if starts.last() != Some(&source.len()) {
+        starts.push(source.len());
+    }
+    starts
+}
+
+/// `source` split into lines (trailing `\n` kept), using `starts` from
+/// `line_starts(source)`.
+fn lines_from_starts<'a>(source: &'a [u8], starts: &[usize]) -> Vec<&'a [u8]> {
+    starts.windows(2).map(|w| &source[w[0]..w[1]]).collect()
 }
 
 impl std::fmt::Debug for SyntaxTree {
@@ -538,6 +691,105 @@ mod tests {
     }
 
     #[test]
+    fn diff_with_marks_changed_line_and_leaves_others_unchanged() {
+        let old_source = "x = 1\ny = 2\nz = 3\n";
+        let new_source = "x = 1\ny = 99\nz = 3\n";
+        let old_tree = parse_str(old_source, Lang::Python).tree;
+        let [x_old, y_old, z_old] = old_tree.find("assignment")[..] else {
+            panic!("expected 3 assignments");
+        };
+
+        let diff = old_tree.diff_with(new_source.as_bytes());
+        assert_eq!(diff.tree.source_of(diff.tree.root()), new_source);
+
+        assert!(old_tree.unchanged_in(x_old, &diff));
+        assert!(!old_tree.unchanged_in(y_old, &diff));
+        assert!(old_tree.unchanged_in(z_old, &diff));
+
+        let [x_new, y_new, z_new] = diff.tree.find("assignment")[..] else {
+            panic!("expected 3 assignments in the new tree");
+        };
+        assert!(diff.unchanged(x_new));
+        assert!(!diff.unchanged(y_new));
+        assert!(diff.unchanged(z_new));
+    }
+
+    #[test]
+    fn diff_with_handles_two_separate_hunks_in_reverse_order() {
+        // Two independent single-line changes (first and last line) with
+        // unchanged lines in between - regression test for the "apply
+        // hunks from the end of the document towards the start" rule: if
+        // hunks were applied in document order instead, the second hunk's
+        // byte offsets (computed against the *original* old_source) would
+        // be stale once the first hunk had already shifted everything
+        // after it.
+        let old_source = "a = 1\nb = 2\nc = 3\nd = 4\n";
+        let new_source = "a = 999\nb = 2\nc = 3\nd = 888\n";
+        let old_tree = parse_str(old_source, Lang::Python).tree;
+        let [a_old, b_old, c_old, d_old] = old_tree.find("assignment")[..] else {
+            panic!("expected 4 assignments");
+        };
+
+        let diff = old_tree.diff_with(new_source.as_bytes());
+        assert_eq!(diff.tree.source_of(diff.tree.root()), new_source);
+
+        assert!(!old_tree.unchanged_in(a_old, &diff));
+        assert!(old_tree.unchanged_in(b_old, &diff));
+        assert!(old_tree.unchanged_in(c_old, &diff));
+        assert!(!old_tree.unchanged_in(d_old, &diff));
+
+        let new_assignments = diff.tree.find("assignment");
+        assert_eq!(new_assignments.len(), 4);
+        assert_eq!(diff.tree.source_of(new_assignments[0]), "a = 999");
+        assert_eq!(diff.tree.source_of(new_assignments[3]), "d = 888");
+    }
+
+    #[test]
+    fn diff_with_identical_source_changes_nothing() {
+        let source = "x = 1\ny = 2\n";
+        let old_tree = parse_str(source, Lang::Python).tree;
+        let diff = old_tree.diff_with(source.as_bytes());
+
+        for id in old_tree.walk() {
+            assert!(old_tree.unchanged_in(id, &diff), "{:?} should be unchanged", id);
+        }
+        for id in diff.tree.walk() {
+            assert!(diff.unchanged(id), "{:?} should be unchanged", id);
+        }
+    }
+
+    #[test]
+    fn diff_with_marks_inserted_line_as_not_unchanged() {
+        let old_source = "x = 1\n";
+        let new_source = "x = 1\ny = 2\n";
+        let old_tree = parse_str(old_source, Lang::Python).tree;
+        let x_old = old_tree.find("assignment")[0];
+
+        let diff = old_tree.diff_with(new_source.as_bytes());
+        assert!(old_tree.unchanged_in(x_old, &diff));
+
+        let new_assignments = diff.tree.find("assignment");
+        assert_eq!(new_assignments.len(), 2);
+        assert!(diff.unchanged(new_assignments[0]));
+        assert!(!diff.unchanged(new_assignments[1]));
+    }
+
+    #[test]
+    fn diff_with_marks_deleted_line_as_not_unchanged_in() {
+        let old_source = "x = 1\ny = 2\n";
+        let new_source = "x = 1\n";
+        let old_tree = parse_str(old_source, Lang::Python).tree;
+        let [x_old, y_old] = old_tree.find("assignment")[..] else {
+            panic!("expected 2 assignments");
+        };
+
+        let diff = old_tree.diff_with(new_source.as_bytes());
+        assert!(old_tree.unchanged_in(x_old, &diff));
+        assert!(!old_tree.unchanged_in(y_old, &diff));
+        assert_eq!(diff.tree.find("assignment").len(), 1);
+    }
+
+    #[test]
     fn replace_updates_source_and_reports_correct_changed_status() {
         let source = "x = 1\ny = 2\n";
         let tree = parse_str(source, Lang::Python).tree;
@@ -555,6 +807,28 @@ mod tests {
         // the untouched statement survives; the edited one does not
         assert!(tree.unchanged_in(second, &edit));
         assert!(!tree.unchanged_in(first, &edit));
+    }
+
+    #[test]
+    fn unchanged_in_is_correct_for_a_large_length_change() {
+        // Regression test: a +1 byte replace ("x = 1" -> "x = 99") doesn't
+        // exercise the old-tree-vs-new-tree coordinate distinction, since
+        // `changed_ranges` (new-tree coordinates) and the old span happen
+        // to land on the same boundary either way. A much larger length
+        // change does, and previously caused `unchanged_in` to misreport an
+        // untouched later node as changed (comparing old-tree byte spans
+        // directly against new-tree-coordinate `changed_ranges`).
+        let source = "x = 1\ny = 2\nz = 3\n";
+        let tree = parse_str(source, Lang::Python).tree;
+        let assignments = tree.find("assignment");
+        assert_eq!(assignments.len(), 3);
+        let (first, second, third) = (assignments[0], assignments[1], assignments[2]);
+
+        let edit = tree.replace(first, "x = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1");
+
+        assert!(!tree.unchanged_in(first, &edit));
+        assert!(tree.unchanged_in(second, &edit));
+        assert!(tree.unchanged_in(third, &edit));
     }
 
     #[test]
@@ -590,4 +864,3 @@ mod tests {
         assert_eq!(edit.tree.source_of(remaining[0]), "y = 2");
     }
 }
-

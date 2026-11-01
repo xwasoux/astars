@@ -43,14 +43,25 @@ v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node b
 - [x] cargo test/clippy --workspace、Python/Node 実機確認済み
 - [ ] `main` へ merge、version/release は未確定(操作9・13 もまとめて1 release にするか、単独で切るかは未決定)
 
+## v0.3.0 候補: 構造的 diff(操作13 v1、実装済み)
+
+`feature/ast-diff` branch で、`diff_with(new_source) -> EditResult` primitive を実装した。設計は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」。
+
+- [x] `astars-core`: `SyntaxTree::diff_with`、`EditResult::unchanged(id)`。新しい型は作らず既存の `EditResult` を再利用
+- [x] Python binding: `PySyntaxTree.diff_with`、`PyEditResult.unchanged`
+- [x] Node binding: `JsSyntaxTree.diffWith`、`JsEditResult.unchanged`
+- [x] examples(`diff_with` + `unchanged_in`/`unchanged` で独立な2木を3値分類するデモ)を両言語に追加
+- [x] cargo test/clippy --workspace、Python/Node 実機確認済み
+- [x] 実装の過程で `unchanged_in` の座標系バグを発見・修正(`changed_ranges` は新木側の座標系であり、旧木側の node spans と直接比較できなかった。`EditResult` に `old_changed_ranges` を追加して解消。既存の `replace()` にも同じバグがあったため回帰テストを追加済み)
+- [ ] `main` へ merge、version/release は未確定(操作9 もまとめて1 release にするか、単独で切るかは未決定)
+
 ## v0.3.0 以降の残り候補
 
 優先順位は固定しない。`ACTION_ITEMS.ja.md` の「強みの実現状況」が未解決のまま残している項目から選ぶ。
 
 - **操作9**: 系譜追跡(変異生成パイプライン `astars-pruning` 向け。シナリオB)
-- **操作13 v1**: textual diff + `tree.edit()` ベースの構造的 diff(`astars-code-review` の土台)。設計は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」
 - **downstream package 1本の実証**: `astars-metrics` など軽量なものを1つ作り、強み4(ecosystem 中核)を初めて実証する
-- **操作13 v2**: GumTree ベースの node matching(構造的 diff の最終形態)
+- **操作13 v2**: GumTree ベースの node matching(構造的 diff の最終形態。v1 は byte-range overlap のみで node 対応付けを持たない)
 - 他言語対応、semantic analysis などは `ACTION_ITEMS.ja.md` の「その他」に残る長期項目
 
 ## Decision Gates
@@ -63,5 +74,5 @@ v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node b
 
 ### `v0.3.0` 以降に進む条件
 
-- 次に着手する項目(操作9・13、downstream package のいずれか)を1つに絞る
+- 次に着手する項目(操作9、downstream package のいずれか)を1つに絞る
 - 複数 version にまたがる大きな変更を1 release に詰め込まない

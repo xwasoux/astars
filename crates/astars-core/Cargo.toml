@@ -8,5 +8,6 @@ description = "Astars core engine: parse / normalize / map / query / edit."
 
 [dependencies]
 encoding_rs = "0.8.35"
+similar = { version = "3.2.1", default-features = false }
 tree-sitter = "0.27.1"
 tree-sitter-python = "0.25.0"
