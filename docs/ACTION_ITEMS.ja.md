@@ -50,11 +50,11 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 - [x] 操作8(編集前後の node 同一性比較: `unchanged_in`)
 - [x] 操作11(部分木の一括 export: `dump`)
 - [x] 操作12(node を値として FFI 境界を越えられる制約)
+- [x] 操作10(名前/kind ベースのアドレス指定: `child_by_field_name(id, field_name)`。tree-sitter の grammar が持つ field 名(`name`/`left`/`right`/`body` 等)をそのまま公開する primitive で、「名前 `hello` の関数」は `find(kind) + child_by_field_name(id, "name") + source_of` の組み合わせで引く。専用の `find_by_name` API は追加していない。Python/Node 両 binding で実機確認済み)
 - [ ] 操作9(派生系譜の追跡 — variant が元のどの node から来たかを追跡する台帳。シナリオB で必須)
-- [ ] 操作10(名前/kind ベースのアドレス指定 — 「名前 `hello` の関数」を一発で引く。シナリオA の核心)
 - [ ] 操作13(独立な2木の構造的 diff。計画中。v1 は textual diff + 既存の `tree.edit()` 機構で代替し、v2 で GumTree による node matching に置き換える方針。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照)
 
-土台(1-8, 11-12)はできているが、この強みを強みたらしめる 9・10・13 が手つかずのまま。
+土台(1-8, 10-12)はできている。残る 9・13 が手つかず。
 
 ### 2. 複数ランタイムでの再利用性
 
@@ -64,8 +64,8 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 ### 3. LLM エージェント向け名前/kind ベース構造化編集
 
 - [x] `replace` + `unchanged_in` による「編集して暴走していないか確認する」ワークフローの土台
-- [ ] 操作10(名前/kind アドレス指定)— 強み1と同じ項目。これが無いと「diff より優れている」という主張の核心部分が未実証(現状は `find(kind)` で候補を絞ってから利用者側で名前を確認する形)
-- [ ] selector DSL
+- [x] 操作10(名前/kind アドレス指定)— 強み1と同じ項目。`child_by_field_name` で実装済み
+- [ ] selector DSL(`kind=... AND name=...` のような複合条件を1呼び出しで解決する仕組み。具体的な消費者が出るまで見送り)
 
 ### 4. ecosystem 中核としての軽量 engine
 

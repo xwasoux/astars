@@ -34,6 +34,15 @@ def main():
         start, end = tree.span_of(node_id)
         print(f"  [{start}:{end}] {tree.source_of(node_id)!r}")
 
+    print("\nchild_by_field_name (find the function named 'greet'):")
+    greet = next(
+        node_id
+        for node_id in tree.find("function_definition")
+        if (name_id := tree.child_by_field_name(node_id, "name")) is not None
+        and tree.source_of(name_id) == "greet"
+    )
+    print(f"  found via find(kind) + child_by_field_name(id, 'name'): {tree.source_of(greet)!r}")
+
     print("\nclasses:")
     for node_id in tree.find("class_definition"):
         info = tree.node_info(node_id)

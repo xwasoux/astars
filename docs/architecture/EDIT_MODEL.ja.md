@@ -173,6 +173,25 @@ AWS が Kiro IDE 向けに AST ベースの構造化編集(`insert_node` / `repl
 
 上記の決定を元に、クラス図(`EditResult` と `SyntaxTree` の関係)とシーケンス図(`replace` 呼び出し時の処理の流れ: source 書き換え → `tree.edit()` → re-parse → `changed_ranges` 取得)を作り、実装に進む。
 
+## 名前/kind アドレス指定(操作10)の設計
+
+### きっかけ
+
+`ACTION_ITEMS.ja.md` の「強みの実現状況」で、操作10(名前/kind ベースのアドレス指定)が強み1・3(source-faithful な編集 loop、LLM エージェント向け構造化編集)の両方で未実装のまま残っていることが分かった。特に強み3は、操作10 が無いと「diff より優れている」という主張の核心部分が未実証だった。
+
+実際に tree-sitter-python でどの node が field 名を持つかを確認したところ、`function_definition`/`class_definition`/`import_statement`/`import_from_statement` は `name` field を、`assignment` は `left`/`right` field を持つことが分かった。つまり「名前」は特別な概念ではなく、tree-sitter の grammar が既に定義している field 名の一つに過ぎない。
+
+### 決定事項
+
+1. **新しい primitive は `child_by_field_name(id, field_name) -> Option<NodeId>` のみ追加する**: 既存の `field_name_of(child) -> Option<&str>`(子 → 親から見た field 名)の逆方向(親 → 特定 field の子)。実装は既存の `children_of` + `field_name_of` から導出するだけで、tree-sitter への新しい依存も新しい state も要らない
+2. **「名前で引く」専用の API は追加しない**: 「kind `function_definition` で名前が `hello` の node を探す」は、呼び出し側が `find(kind) + child_by_field_name(id, "name") + source_of` を組み合わせて実現する。`find_by_name` のような専用メソッドを core に持ち込むと、「名前」という意味論を core が特別扱いすることになり、Analysis-Neutral の design bet(`STRATEGY.ja.md`)に反する。`name` も `left`/`right`/`body`/`parameters` も同じ仕組みで引けることが、この primitive の価値である
+3. **binding 層には直接公開する**: Python/Node の既存公開 API には `children_of`/`field_name_of` 自体が無い(`node_info`/`dump` という DTO 経由でしか子の field 名を見られない)。`child_by_field_name` を呼び出し側の組み合わせだけで代替しようとすると、candidate の数だけ `node_info` を呼ぶ FFI round trip が発生する(操作11 と同じ理由)。そのため `child_by_field_name` は binding 層にも直接追加する
+
+### v1 のスコープ外
+
+- field が複数回出現するケース(`children_by_field_name` のような複数版)。tree-sitter 自身の `child_by_field_name` も単一 return であり、対称的な設計にしている
+- `kind=function_definition AND name=hello` のような複合条件を1呼び出しで解決する selector DSL
+
 ## 構造的 diff(操作13)の設計(計画中)
 
 ### きっかけ

@@ -223,6 +223,23 @@ impl SyntaxTree {
         &self.node(id).children
     }
 
+    /// The child of `id` whose field name (from `id`'s perspective) is
+    /// `field_name` - the inverse direction of `field_name_of`. tree-sitter
+    /// grammars already name fields like `name`, `left`/`right`, `body`; this
+    /// just exposes that existing vocabulary rather than giving "name" (or
+    /// any other field) special treatment in `astars-core` (see
+    /// EDIT_MODEL.ja.md's "名前/kind アドレス指定(操作10)の設計" - finding
+    /// a node by name is `find(kind)` + this + `source_of`, composed by the
+    /// caller, not a dedicated API). Returns the first match, mirroring
+    /// `tree_sitter::Node::child_by_field_name`; a field that legitimately
+    /// repeats has no multi-value counterpart in v1.
+    pub fn child_by_field_name(&self, id: NodeId, field_name: &str) -> Option<NodeId> {
+        self.children_of(id)
+            .iter()
+            .copied()
+            .find(|&child| self.field_name_of(child) == Some(field_name))
+    }
+
     /// Replace `target`'s source span with `new_text`, producing a new tree.
     /// `self` is untouched (immutable edit) - see EDIT_MODEL.ja.md's "編集
     /// primitive(v1)の設計". insert/delete are expressed as `replace` with
@@ -482,6 +499,42 @@ mod tests {
         let second = tree.find("assignment")[1];
         let span = tree.span_of(second);
         assert_eq!(tree.point_at(span.start_byte), Point { line: 1, column: 0 });
+    }
+
+    #[test]
+    fn child_by_field_name_finds_function_by_name() {
+        let source = "def hello(name):\n    return name\n\ndef bye():\n    pass\n";
+        let tree = parse_str(source, Lang::Python).tree;
+
+        let hello = tree
+            .find("function_definition")
+            .into_iter()
+            .find(|&id| {
+                tree.child_by_field_name(id, "name")
+                    .map(|n| tree.source_of(n) == "hello")
+                    .unwrap_or(false)
+            })
+            .expect("should find the function named hello");
+
+        assert_eq!(tree.source_of(hello), "def hello(name):\n    return name");
+    }
+
+    #[test]
+    fn child_by_field_name_finds_assignment_left_and_right() {
+        let tree = parse_str("x = 1\n", Lang::Python).tree;
+        let assignment = tree.find("assignment")[0];
+
+        let left = tree.child_by_field_name(assignment, "left").expect("left field");
+        let right = tree.child_by_field_name(assignment, "right").expect("right field");
+        assert_eq!(tree.source_of(left), "x");
+        assert_eq!(tree.source_of(right), "1");
+    }
+
+    #[test]
+    fn child_by_field_name_returns_none_for_missing_field() {
+        let tree = parse_str("x = 1\n", Lang::Python).tree;
+        let assignment = tree.find("assignment")[0];
+        assert_eq!(tree.child_by_field_name(assignment, "no_such_field"), None);
     }
 
     #[test]

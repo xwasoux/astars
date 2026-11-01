@@ -121,6 +121,16 @@ impl PySyntaxTree {
         (point.line, point.column)
     }
 
+    /// The child of `id` whose field name is `field_name` (e.g. `"name"` on
+    /// a `function_definition`, `"left"`/`"right"` on an `assignment`). To
+    /// find a node by name, combine with `find(kind)` and `source_of` - see
+    /// `docs/architecture/EDIT_MODEL.ja.md`'s "名前/kind アドレス指定(操作10)の設計".
+    fn child_by_field_name(&self, id: u32, field_name: &str) -> Option<u32> {
+        self.inner
+            .child_by_field_name(NodeId::from_u32(id), field_name)
+            .map(NodeId::as_u32)
+    }
+
     /// One node's detail - a single, targeted FFI round trip.
     fn node_info(&self, id: u32) -> PyNodeInfo {
         PyNodeInfo::from_tree(&self.inner, NodeId::from_u32(id))
@@ -365,5 +375,29 @@ mod tests {
         let second = py_tree.find("assignment")[1];
         let (start_byte, _) = py_tree.span_of(second);
         assert_eq!(py_tree.point_at(start_byte), (1, 0));
+    }
+
+    #[test]
+    fn child_by_field_name_finds_function_by_name() {
+        let core_tree = astars_core::parse_str(
+            "def hello(name):\n    return name\n\ndef bye():\n    pass\n",
+            astars_core::Lang::Python,
+        )
+        .tree;
+        let py_tree = PySyntaxTree::from(core_tree);
+
+        let hello = py_tree
+            .find("function_definition")
+            .into_iter()
+            .find(|&id| {
+                py_tree
+                    .child_by_field_name(id, "name")
+                    .map(|n| py_tree.source_of(n) == "hello")
+                    .unwrap_or(false)
+            })
+            .expect("should find the function named hello");
+
+        assert_eq!(py_tree.source_of(hello), "def hello(name):\n    return name");
+        assert_eq!(py_tree.child_by_field_name(hello, "no_such_field"), None);
     }
 }
