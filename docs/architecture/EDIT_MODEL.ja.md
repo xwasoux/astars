@@ -145,12 +145,13 @@ AWS が Kiro IDE 向けに AST ベースの構造化編集(`insert_node` / `repl
 
 1. **`SyntaxTree` に `Lang` を持たせる**: 編集後に再 parse するには言語を知っている必要があるが、現状 `Lang` は `ParseResult`/binding 側にしかない。`SyntaxTree` 自身に持たせる
 2. **`replace(target, new_text) -> EditResult` を最小の編集 primitive にする**: insert/delete は「空文字列への置換」「zero-width span への置換」として `replace` 1本で表現し、v1 では `insert`/`delete` を別メソッドとして増やさない
-3. **比較は `NodeId` の一致ではなく `changed_ranges` との byte 範囲重なりで行う**: 編集後の新しい木は別 arena なので、旧木の `NodeId` と新木の `NodeId` は番号として対応しない。`tree_sitter::Tree::changed_ranges(&old_raw, &new_raw)` が返す「変更された byte 範囲」に、旧 node の span が重ならなければ「変わっていない」と判定する
+3. **比較は `NodeId` の一致ではなく byte 範囲重なりで行う**: 編集後の新しい木は別 arena なので、旧木の `NodeId` と新木の `NodeId` は番号として対応しない。`tree_sitter::Tree::changed_ranges(&old_raw, &new_raw)` は**新木側の座標系**で範囲を返すため、旧木側(`SyntaxTree.nodes` は構築時の座標を保持し続ける)の node span と直接比較すると座標系が食い違う。このため `EditResult` は旧木側用の `old_changed_ranges`(tree-sitter に伝えた書き換え前の byte 範囲そのもの)と、新木側用の `changed_ranges`(`changed_ranges()` の戻り値)を別々に持つ。`unchanged_in` は `old_changed_ranges` と、`EditResult::unchanged`(操作13 で追加)は `changed_ranges` と比較する
 
    ```rust
    pub struct EditResult {
-       pub tree: SyntaxTree,           // 新しい木
-       changed_ranges: Vec<ByteSpan>,  // private
+       pub tree: SyntaxTree,               // 新しい木
+       old_changed_ranges: Vec<ByteSpan>,  // private。旧木の座標系
+       changed_ranges: Vec<ByteSpan>,      // private。新木の座標系
    }
 
    impl SyntaxTree {
@@ -200,12 +201,102 @@ AST を自在に操れることの延長として、「同じファイルの独�
 
 最終的には GumTree のような tree edit distance アルゴリズムで node を対応付け、rename/move/modify まで区別できる状態を目指す。ただし GumTree 相当の実装は規模が大きいため、それまでの代替として、既存の編集 primitive の仕組みに乗せた簡易版を v1 として先に用意する。
 
-### 決定事項(現時点の方針。実装時に確定)
+### 決定事項
 
-1. **2つの source のテキスト diff を `InputEdit` の列に変換し、既存の `tree.edit()` + `changed_ranges()` の仕組みに乗せる**: `replace` が単一 span の書き換えから `InputEdit` を1つ作るのに対し、diff は複数 hunk から複数の `InputEdit` を作る。tree-sitter への適用順序(末尾側から適用しないと後続の byte offset がずれる)に注意が必要
-2. **テキスト diff 自体は自前実装しない**: Myers diff を手で書くのは避け、`similar` のような実績のある軽量 crate に任せる
-3. **戻り値は `EditResult` と同じ形にする**: `tree`(新しい木)+ private な `changed_ranges` を持つ型にし、`unchanged_in` をそのまま(あるいはごく小さな追加で)再利用できるようにする
-4. **node 単位の分類は byte span の overlap 判定のみ**: `changed_ranges` と重ならなければ `Unchanged`。旧木側で重なれば `Removed`、新木側で重なれば `Added` とする。node 同士の対応付け(「この関数は名前を変えて残っている」等)は行わない — それは v2(GumTree)の仕事
+1. **2つの source のテキスト diff を `InputEdit` の列に変換し、既存の `tree.edit()` + `changed_ranges()` の仕組みに乗せる**: `replace` が単一 span の書き換えから `InputEdit` を1つ作るのに対し、diff は複数 hunk から複数の `InputEdit` を作る
+2. **テキスト diff 自体は自前実装しない**: Myers diff を手で書くのは避け、`similar` crate(行単位の byte slice 比較)に任せる
+3. **新しい型は作らず、`EditResult` をそのまま返す**: `tree`(新しい木)+ private な `changed_ranges` を持つ既存の型をそのまま使う。`unchanged_in`(旧木側の判定)はそのまま再利用し、新木側の対称判定として `EditResult::unchanged(id)` を追加する
+4. **node 単位の分類は byte span の overlap 判定のみ、専用の enum は作らない**: `changed_ranges` と重ならなければ unchanged。旧木側で重なれば実質 removed、新木側で重なれば実質 added — ただしこれは呼び出し側が `unchanged_in` / `unchanged` を組み合わせて表現するものであり、`Added`/`Removed`/`Unchanged` のような専用 enum を core には追加しない(`child_by_field_name` と同じ、primitive を組み合わせる方針)。node 同士の対応付け(「この関数は名前を変えて残っている」等)は行わない — それは v2(GumTree)の仕事
+
+### API 仕様
+
+```rust
+impl SyntaxTree {
+    /// `self` の source と `new_source` を比較し、`self` の編集系譜に
+    /// 繋がる新しい tree を返す。`replace` と同じ `EditResult` を返すため、
+    /// `unchanged_in` がそのまま使える。
+    pub fn diff_with(&self, new_source: &[u8]) -> EditResult;
+}
+
+impl EditResult {
+    /// `id`(`self.tree` 側の node)は edit 前から変わらず存在していたか。
+    /// `SyntaxTree::unchanged_in`(旧木側)の対称版(新木側)。
+    pub fn unchanged(&self, id: NodeId) -> bool;
+}
+```
+
+呼び出し側での 3値分類の組み立て方(参考):
+
+```rust
+let diff = old_tree.diff_with(new_source);
+
+// 旧木にあったが、新 source では変わった/消えた node
+let removed: Vec<NodeId> = old_tree.walk()
+    .filter(|&id| !old_tree.unchanged_in(id, &diff))
+    .collect();
+
+// 新木にあるが、旧 source には(その形では)無かった node
+let added: Vec<NodeId> = diff.tree.walk()
+    .filter(|&id| !diff.unchanged(id))
+    .collect();
+```
+
+### アルゴリズム(疑似コード)
+
+![diff_with のフロー(叩き台)](img/edit-model-flow.drawio.svg)
+
+```text
+fn diff_with(old_tree, new_source):
+    # 1. 行単位の byte slice に分割する(非 UTF-8 source でも安全なように
+    #    str ではなく &[u8] のまま扱う。parse_bytes と同じ方針)
+    old_lines, old_line_starts = split_into_lines(old_tree.source)
+    new_lines, new_line_starts = split_into_lines(new_source)
+
+    # 2. 行単位でテキスト diff を取る(similar crate)
+    ops = TextDiff::from_slices(old_lines, new_lines).ops()
+
+    # 3. 変更のあった hunk だけを抽出し、行 index を byte offset に変換する
+    hunks = []
+    for op in ops:
+        if op is not Equal:
+            hunks.push(ByteHunk(
+                old_start = old_line_starts[op.old_range.start],
+                old_end   = old_line_starts[op.old_range.end],
+                new_start = new_line_starts[op.new_range.start],
+                new_end   = new_line_starts[op.new_range.end],
+            ))
+
+    # 4. hunk を末尾側から順に tree.edit() へ適用する
+    #    (先頭から適用すると、まだ処理してない後続 hunk の byte offset が
+    #    ずれてしまうため。先頭に近い hunk ほど後で適用する)
+    #    old_changed_ranges(旧木側の座標系)は、reverse 適用で書き換わる
+    #    前のこの時点の hunk 範囲から作る
+    old_changed_ranges = [ByteSpan(h.old_start, h.old_end) for h in hunks]
+
+    edited_raw = old_tree.raw.clone()
+    for hunk in reversed(hunks):
+        edited_raw.edit(InputEdit {
+            start_byte:     hunk.old_start,
+            old_end_byte:   hunk.old_end,
+            new_end_byte:   hunk.new_start + (hunk.new_end - hunk.new_start),
+            start_position:    point_at(old_tree.source, hunk.old_start),
+            old_end_position:  point_at(old_tree.source, hunk.old_end),
+            new_end_position:  end_position_after_insert(...),  # replace と同じ helper
+        })
+
+    # 5. 全 hunk を伝えた状態で、1回だけ再 parse する
+    new_raw = parser.parse(new_source, Some(&edited_raw))
+
+    # 6. changed_ranges(新木側)を取得し、EditResult を返す(replace と同じ最終形)
+    changed_ranges = edited_raw.changed_ranges(new_raw)
+    return EditResult {
+        tree: SyntaxTree::from_tree_sitter(old_tree.lang, new_raw, new_source),
+        old_changed_ranges,
+        changed_ranges,
+    }
+```
+
+`replace` との違いは、3〜4(複数 hunk の抽出と reverse 適用)だけである。5・6(再 parse と `changed_ranges` 取得)は `replace` と全く同じコードパスを通る。
 
 ### v1 のスコープ外(v2 = GumTree 導入まで見送り)
 

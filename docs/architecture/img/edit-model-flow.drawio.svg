@@ -1,0 +1,58 @@
+<svg host="astars-claude" xmlns="http://www.w3.org/2000/svg" width="820" height="920" viewBox="0 0 820 920" style="background:#ffffff" content="&lt;mxfile&gt;&lt;diagram id=&quot;edit-model-flow&quot; name=&quot;diff_with flow (操作13 v1)&quot;&gt;7VpNb+M2EP01vAb6NnWUbKVdoL1sFujRkC3aFkKLrkTHSX99ZyhS3wmyWEepkeYScjgi6fcehzOyibs8Pv9WpqfDnyJjnDhW9kzcFXEc27Ms+IeWl9oSGsO+zDPt1Boe8n+YNhq3c56xqucoheAyP/WNW1EUbCt7trQsxaXvthO8v+op3bOR4WGb8rH1rzyTh9pKfau1/87y/cGsbJvPd0yNszZUhzQTl47JTYi7LIWQdev4vGQcwTO41M/dvzLabKxkhXzPA/tSnE9r2EXJsvrZp5Sf9ccs2YmnW0YcSpwQhkjiEmqTiJLEJ9QnsU2SkFCLhJEZSlTDIbGrGi6Jl7pBQ90IbeMTagzkiwEWdlNkDPdmEze+HHLJHk64BXd1ASmB7SCPXA/vcs6XgosS+oUowCmuZCkemTESx6XOxg0CGMnS6tBMvBOF1Kqysf/ESpkDvRHP9wUYpcClUt3jbCdxbthIXuz/UL0VbS0/0Hvl6XmnFtfIwirs+VWi7IZ+ODdMHJksX8DFPOBqxegj43u6f2kF6BpVHbriC7Ux1aLfN3O3uoCGlsa0TPJijWdkKBCwrWXJGLGiSpxL5ClCnThBekQEiR+fKfFXMF6ml3oQ/ddVLiUr0eBGP3CCqwkBYM9SRnfbKTUEW8o2u4EAnA7VW2AD9zVSxDHPMtzbNaj0+kxOENnYukQursNjwS4jHsG2fpvAr8SP+4kEVZKd7BE/1Ynncp0XUqx5XsDNV0dkC8KuQ2hAQvTHw6hHLVyvtawrmZayGvgj6X1/YzH+r5Nu/TTpO/U3RXr999mk236f9KbfZZ1+IOvOmPX8mPPUREn2LFc5Ioi9XSmO64rn21oLVn1ouxJY9hkeieVU006Tv88pbOX+W1EBfNBYMc4kBOT77+b2D7+0EJz3CiG4khDckRAwywpXJEw0WU0iFikmjcFBapOA0IjEK5WiLUgcKeIpiWxCURM5EPesnmjFsHlBwi2x21VMdqaPcZLIU6kbTHtPwvhLS8H1ZpaCN5LC4Vw8DvkOl5qq2CJxooi3SexpFmmsnZHFkEQW0t4SHKoGDC1I6GFqb0UsAxKzNWRsd9iEIPGtOJ1lotpfOxh47jsVQK+ggEJI5k0EA1V7UarZjFbTRA9orX3C0PjEnWLOxRoO2pYp4+LEjFo6jkSBmqojnnBhfIyFem1cai0+zgahBx6PA6wUAaiOiFXNaEWvhCC6NKtFZuPL4bLNRppd6z1a6I+faXRE4MpsQiJ+LF9t2ccQFy86S6voFzWWVedjwZyBqmDDX4Bf7fCaqTUcJmc7mVpnwSbwg8F5ssZV7nQp3K99g6na9xqF0XtOm/tBpw3jrT86bbB5yIvu1L9uptWpmFSq9QALqqxcF05tDFUhU6VfDigAJAWXaNg9X7Uy1BAIF0SmIKuunnhlPqOZ9+ZLkv9UrPWDmW/bYMR+5ybcHtJir9rwr+pSjVIwPH9huoI582RxliOyMD/5zqozV/fHItbvmurzOaQPHFZXjrwseCXyLsKNZU3Qpfp6dfuz6Vt4M9a7B8ZPb75QvDsXhrG8gMMGDyoam0OXYSk8qmrVtbxQN3Z959NhNhzV+THFix2v90RlJHSXcgy4Vj+Bqe/y2useM4bYrWuukh3FE74wD6+rIbpl0xraUB8vx/Gb61k141sDzTgTmgk+6MgrzUy9vEQptHrRYplURoDp38cqI82y/3VBrRl1wewR1izbMxNYRSkPYi+KlCetNe5fzB3kWZFF+AUhdDdcbB/RxDeqbxBsMMNl3kYMdqXfqg+/RJFpuWdy8M53DHDJeCrzp/4yv4SWc0NoNaf909BybwWtzvcGQ7CcucDybgksZxosdy6w/FsCy50Gy5sLrOCWwPKmwfLnAmtxS2D502AFc4FFbwmsYAyWLoTngCq8FaialwNdoLol5xxomZ+q3TJcOv+6PlzQbX/ipsY6PxR0k38B&lt;/diagram&gt;&lt;/mxfile&gt;">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#555555"/>
+  </marker>
+</defs>
+<rect x="130" y="540" width="320" height="190" rx="10" ry="10" fill="none" stroke="#82b366" stroke-dasharray="6,4" stroke-width="1.5"/>
+<text x="140" y="558" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#82b366">replace() と共通のコードパス</text>
+<path d="M 160.0 110.0 L 160.0 130.0 L 290.0 130.0 L 290.0 150.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 460.0 110.0 L 460.0 130.0 L 290.0 130.0 L 290.0 150.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 220.0 L 290.0 250.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 310.0 L 290.0 340.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 400.0 L 290.0 430.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 510.0 L 290.0 560.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 620.0 L 290.0 650.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 710.0 L 290.0 740.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 430.0 775.0 L 430.0 762.5 L 500.0 762.5 L 500.0 750.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M 290.0 810.0 L 290.0 805.0 L 630.0 805.0 L 630.0 800.0" fill="none" stroke="#555555" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="40" y="40" width="240" height="70" rx="10" ry="10" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+    <text x="160.0" y="62.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">old_tree</text>
+    <text x="160.0" y="80.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">source: &amp;[u8]</text>
+    <text x="160.0" y="98.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">raw: tree_sitter::Tree</text>
+<rect x="340" y="40" width="240" height="70" rx="10" ry="10" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+    <text x="460.0" y="80.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">new_source: &amp;[u8]</text>
+<rect x="150" y="150" width="280" height="70" rx="2" ry="2" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+    <text x="290.0" y="172.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">split_into_lines()</text>
+    <text x="290.0" y="190.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">→ old_lines / old_line_starts</text>
+    <text x="290.0" y="208.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">→ new_lines / new_line_starts</text>
+<rect x="150" y="250" width="280" height="60" rx="2" ry="2" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+    <text x="290.0" y="267.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">similar::TextDiff::from_slices(</text>
+    <text x="290.0" y="285.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">  old_lines, new_lines)</text>
+    <text x="290.0" y="303.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">→ ops (Equal/Insert/Delete/Replace)</text>
+<rect x="150" y="340" width="280" height="60" rx="2" ry="2" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+    <text x="290.0" y="366.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">非Equal な op を抽出</text>
+    <text x="290.0" y="384.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">行 index → byte offset に変換</text>
+<rect x="150" y="430" width="280" height="80" rx="2" ry="2" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+    <text x="290.0" y="466.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">hunk を末尾側から順に適用</text>
+    <text x="290.0" y="484.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">edited_raw.edit(InputEdit)</text>
+<rect x="450" y="430" width="230" height="80" rx="10" ry="10" fill="#fff2cc" stroke="#d6b656" stroke-width="1.5"/>
+    <text x="458.0" y="442.0" font-family="Helvetica,Arial,sans-serif" font-size="10" text-anchor="start" fill="#1a1a1a">先頭から適用すると、</text>
+    <text x="458.0" y="458.0" font-family="Helvetica,Arial,sans-serif" font-size="10" text-anchor="start" fill="#1a1a1a">まだ処理していない後続 hunk の</text>
+    <text x="458.0" y="474.0" font-family="Helvetica,Arial,sans-serif" font-size="10" text-anchor="start" fill="#1a1a1a">byte offset がずれてしまう。</text>
+    <text x="458.0" y="490.0" font-family="Helvetica,Arial,sans-serif" font-size="10" text-anchor="start" fill="#1a1a1a">末尾(行番号が大きい方)から適用する。</text>
+<rect x="150" y="560" width="280" height="60" rx="2" ry="2" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+    <text x="290.0" y="577.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">parser.parse(</text>
+    <text x="290.0" y="595.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">  new_source, Some(&amp;edited_raw))</text>
+    <text x="290.0" y="613.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">(1回だけ再 parse)</text>
+<rect x="150" y="650" width="280" height="60" rx="2" ry="2" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+    <text x="290.0" y="685.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a">edited_raw.changed_ranges(&amp;new_raw)</text>
+<rect x="150" y="740" width="280" height="70" rx="10" ry="10" fill="#ffe6cc" stroke="#d79b00" stroke-width="1.5"/>
+    <text x="290.0" y="780.0" font-family="Helvetica,Arial,sans-serif" font-size="12" text-anchor="middle" fill="#1a1a1a" font-weight="bold">EditResult { tree, changed_ranges }</text>
+<rect x="500" y="720" width="260" height="60" rx="10" ry="10" fill="#f8cecc" stroke="#b85450" stroke-width="1.5"/>
+    <text x="630.0" y="746.0" font-family="Helvetica,Arial,sans-serif" font-size="11" text-anchor="middle" fill="#1a1a1a">old_tree.unchanged_in(id, &amp;diff)</text>
+    <text x="630.0" y="763.0" font-family="Helvetica,Arial,sans-serif" font-size="11" text-anchor="middle" fill="#1a1a1a">→ 旧木側の判定(false なら実質 removed)</text>
+<rect x="500" y="800" width="260" height="60" rx="10" ry="10" fill="#f8cecc" stroke="#b85450" stroke-width="1.5"/>
+    <text x="630.0" y="826.0" font-family="Helvetica,Arial,sans-serif" font-size="11" text-anchor="middle" fill="#1a1a1a">diff.unchanged(id)</text>
+    <text x="630.0" y="843.0" font-family="Helvetica,Arial,sans-serif" font-size="11" text-anchor="middle" fill="#1a1a1a">→ 新木側の判定(false なら実質 added)</text>
+</svg>
