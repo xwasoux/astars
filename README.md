@@ -78,14 +78,14 @@ downstream package も、まだ無い。各項目の正確な現状は
 
 **Astars's core engine was rewritten in Rust** (`crates/astars-core`), with
 Python and Node.js as binding-based consumers (`bindings/python`, `bindings/node`
-in this repository). See [`docs/STRATEGY.ja.md`](docs/STRATEGY.ja.md) for the
+in this repository). See [`docs/strategy/STRATEGY.ja.md`](docs/strategy/STRATEGY.ja.md) for the
 rationale and [`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) for current
 status.
 
 **Astars の core engine は Rust で書き直した**(`crates/astars-core`)。
 Python と Node.js はその binding 経由の consumer という位置づけになる(この
 リポジトリの `bindings/python` / `bindings/node`)。方針の経緯は
-[`docs/STRATEGY.ja.md`](docs/STRATEGY.ja.md)、現在の状況は
+[`docs/strategy/STRATEGY.ja.md`](docs/strategy/STRATEGY.ja.md)、現在の状況は
 [`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) を参照。
 
 The Rust core has reached its v0 scope end-to-end through both bindings, and
@@ -252,12 +252,12 @@ core engine(`astars-core`)は `Lang`、`ParseResult`、`SyntaxTree`(+ `NodeId`�
   `JsDiagnostic`, `parseStr` / `parseBytes` / `parseFile`
 
 For the full method-level surface of each type, see the Mermaid class diagrams in
-[`docs/architecture/ARCHITECTURE.ja.md`](docs/architecture/ARCHITECTURE.ja.md)
+[`docs/design/ARCHITECTURE.ja.md`](docs/design/ARCHITECTURE.ja.md)
 rather than this README, so there is a single place that stays in sync with the
 code.
 
 各型のメソッド単位の詳細は、この README ではなく
-[`docs/architecture/ARCHITECTURE.ja.md`](docs/architecture/ARCHITECTURE.ja.md)
+[`docs/design/ARCHITECTURE.ja.md`](docs/design/ARCHITECTURE.ja.md)
 の Mermaid クラス図を参照する。コードと同期する場所を一箇所にするためである。
 
 ## Design Boundary
@@ -384,9 +384,9 @@ The current strategy and architecture notes are maintained in Japanese:
 現在の戦略・アーキテクチャに関するドキュメントは日本語で管理している:
 
 - [Current Action Items](docs/ACTION_ITEMS.ja.md)
-- [Strategy](docs/STRATEGY.ja.md)
-- [Architecture](docs/architecture/ARCHITECTURE.ja.md)
-- [Edit Model](docs/architecture/EDIT_MODEL.ja.md)
-- [Source Mapping Plan](docs/SOURCE_MAPPING_PLAN.ja.md)
-- [Release Strategy](docs/RELEASE_STRATEGY.ja.md)
-- [Next Release Plan](docs/NEXT_RELEASE_PLAN.ja.md)
+- [Strategy](docs/strategy/STRATEGY.ja.md)
+- [Architecture](docs/design/ARCHITECTURE.ja.md)
+- [Edit Model](docs/design/EDIT_MODEL.ja.md)
+- [Node Resolution](docs/design/NODE_RESOLUTION.ja.md)
+- [Release Strategy](docs/release/RELEASE_STRATEGY.ja.md)
+- [Next Release Plan](docs/release/NEXT_RELEASE_PLAN.ja.md)

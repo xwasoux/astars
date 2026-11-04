@@ -2,15 +2,15 @@
 
 関連文書:
 
-- [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md)
+- [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 - [RELEASE_STRATEGY.ja.md](RELEASE_STRATEGY.ja.md)
-- [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md)
+- [../design/EDIT_MODEL.ja.md](../design/EDIT_MODEL.ja.md)
 
 この文書は、Rust core(`crates/astars-core` + `bindings/python` + `bindings/node`)の version ごとの release scope を管理する。`v0.1.0` は旧 Python-only 実装の最終 release であり、ここで扱う `v0.2.0` 以降は Rust core の release である。
 
 ## Current Baseline
 
-v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node binding として実装・動作確認済みで、`main` に `v0.2.0` として tag 済みである。詳細は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) の「v0 Scope: 完了」を参照。
+v0 scope(parse/query/edit primitive v1/diagnostics)は Rust core + Python/Node binding として実装・動作確認済みで、`main` に `v0.2.0` として tag 済みである。詳細は [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md) の「v0 Scope: 完了」を参照。
 
 ## v0.2.0: 最初の Rust Release(完了)
 

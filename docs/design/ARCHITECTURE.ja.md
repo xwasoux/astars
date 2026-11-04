@@ -4,7 +4,7 @@
 
 関連文書:
 
-- [STRATEGY.ja.md](../STRATEGY.ja.md)
+- [STRATEGY.ja.md](../strategy/STRATEGY.ja.md)
 - [ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 - [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md): 編集時のテキスト/木の追従モデル(v0 scope の AST node 構造設計の前提)
 
@@ -267,7 +267,7 @@ classDiagram
 - `parseFile` の `encoding` 引数は optional(デフォルト `"utf-8"`。WHATWG Encoding Standard のラベル)。I/O 失敗・不明な `encoding` ラベルはいずれも throw(`napi::Error::from_reason`)
 - `JsSyntaxTree`/`JsEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper。`JsEditResult.tree()` getter は `SyntaxTree` を clone して返す
 
-> 旧 Python 実装(`astars/` package)前提の版からは `STRATEGY.ja.md` の Rust 移行方針に伴い書き直している。旧実装は `prototype-python/` に frozen reference として残り、検証済みの設計判断は `SOURCE_MAPPING_PLAN.ja.md` の Resolved Decisions に引き継ぐ。
+> 旧 Python 実装(`astars/` package)前提の版からは `STRATEGY.ja.md` の Rust 移行方針に伴い書き直している。旧実装は `prototype-python/` に frozen reference として残り、検証済みの設計判断は `NODE_RESOLUTION.ja.md` に引き継ぐ。
 
 この文書は、Astars の概念モデルを実装上の crate / module boundary に落とすための文書である。現行コードをそのまま正当化する文書ではなく、`astars` engine として安定させるべき目標アーキテクチャを示す。
 
@@ -312,7 +312,11 @@ astars/                      (repo root, Cargo workspace)
   prototype-python/          旧 Python 実装(frozen reference, 非 active development)
 
   docs/
-    architecture/             本書 + draw.io 図
+    README.md                 ドキュメント構成の索引
+    ACTION_ITEMS.ja.md        作業再開時に最初に読む短期 action item
+    strategy/                 なぜ作るか(STRATEGY/USE_CASES/ROADMAP)
+    design/                   どう作るか。本書 + EDIT_MODEL/NODE_RESOLUTION/SOURCE_MODEL.ja.md + draw.io 図
+    release/                  いつ・どの順で出すか(RELEASE_STRATEGY/NEXT_RELEASE_PLAN)
 ```
 
 ## Layer Overview

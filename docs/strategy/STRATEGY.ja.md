@@ -10,7 +10,7 @@
 
 - [USE_CASES.ja.md](USE_CASES.ja.md): research / practical use cases
 - [ROADMAP.ja.md](ROADMAP.ja.md): adoption story と近い実装戦略
-- [DOCS_PLAN.ja.md](DOCS_PLAN.ja.md): ドキュメント分割計画
+- [README.md](../README.md): ドキュメント構成の索引
 
 ## ビジョン
 
@@ -256,7 +256,7 @@ Astars core engine(parse / normalize / map / query / edit)は Rust で実装す�
 
 これは、repository 群規模での速度とメモリ効率、および ML/研究者向け(Python)と agent 統合向け(TypeScript)の両方を同じ core から自然に満たすための判断である。tree-sitter や ast-grep が同種の構成(Rust/C core + 複数言語 binding)を採用している。
 
-repository 構成は、単一 repository(monorepo)に `astars-core`(Rust)、Python binding、Node binding をまとめる形を採用する。構成案の比較は [architecture/repo-structure.drawio.svg](architecture/repo-structure.drawio.svg) に残す。
+repository 構成は、単一 repository(monorepo)に `astars-core`(Rust)、Python binding、Node binding をまとめる形を採用する。構成案の比較は [../design/repo-structure.drawio.svg](../design/repo-structure.drawio.svg) に残す。
 
 ## Trade-offs
 

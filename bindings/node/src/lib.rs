@@ -1,13 +1,13 @@
 //! napi-rs bindings for `astars-core`.
 //!
 //! This crate is the only place allowed to depend on napi-rs - `astars-core`
-//! itself stays binding-agnostic (see `docs/STRATEGY.ja.md`). `JsLang`,
+//! itself stays binding-agnostic (see `docs/strategy/STRATEGY.ja.md`). `JsLang`,
 //! `JsSyntaxTree`, `JsNodeInfo`, `JsEditResult` and `JsDiagnostic` exist
 //! purely to mirror `astars_core` types across the FFI boundary; see the
-//! "bindings/node" class diagram in `docs/architecture/ARCHITECTURE.ja.md`
-//! for the design this module implements (the edit primitive and
-//! diagnostics behavior are explained in `docs/architecture/EDIT_MODEL.ja.md`
-//! and `docs/SOURCE_MAPPING_PLAN.ja.md`).
+//! "bindings/node" class diagram in `docs/design/ARCHITECTURE.ja.md`
+//! for the design this module implements (the edit primitive is explained in
+//! `docs/design/EDIT_MODEL.ja.md`, diagnostics behavior in
+//! `docs/design/SOURCE_MODEL.ja.md`).
 //!
 //! Node side: `import { parseStr, JsLang } from '@astars/native'` (the
 //! eventual `astars` / `@astars/core` npm package is a separate, thin
@@ -149,7 +149,7 @@ impl JsSyntaxTree {
     /// The child of `id` whose field name is `fieldName` (e.g. `"name"` on
     /// a `function_definition`, `"left"`/`"right"` on an `assignment`). To
     /// find a node by name, combine with `find(kind)` and `sourceOf` - see
-    /// `docs/architecture/EDIT_MODEL.ja.md`'s "名前/kind アドレス指定(操作10)の設計".
+    /// `docs/design/EDIT_MODEL.ja.md`'s "名前/kind アドレス指定(操作10)の設計".
     #[napi]
     pub fn child_by_field_name(&self, id: u32, field_name: String) -> Option<u32> {
         self.inner
@@ -181,7 +181,7 @@ impl JsSyntaxTree {
 
     /// Replace `target`'s source span with `new_text`, producing a new
     /// `JsSyntaxTree` wrapped in a `JsEditResult`. `self` is untouched. See
-    /// `docs/architecture/EDIT_MODEL.ja.md` ("編集 primitive(v1)の設計").
+    /// `docs/design/EDIT_MODEL.ja.md` ("編集 primitive(v1)の設計").
     #[napi]
     pub fn replace(&self, target: u32, new_text: String) -> JsEditResult {
         let edit = self.inner.replace(NodeId::from_u32(target), &new_text);
@@ -191,7 +191,7 @@ impl JsSyntaxTree {
     /// Did `id` (a node in `self`, the tree *before* some `edit`) survive
     /// into `edit.tree` unchanged? `id` must come from `self`, not from
     /// `edit.tree` - `NodeId`s from different trees are not comparable
-    /// (see `docs/architecture/EDIT_MODEL.ja.md`).
+    /// (see `docs/design/EDIT_MODEL.ja.md`).
     #[napi]
     pub fn unchanged_in(&self, id: u32, edit: &JsEditResult) -> bool {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
@@ -201,7 +201,7 @@ impl JsSyntaxTree {
     /// sources, not connected by a `replace()` lineage (e.g. two versions
     /// of the same file) - and returns a `JsEditResult` as if `newSource`
     /// had been reached by editing `self`. See
-    /// `docs/architecture/EDIT_MODEL.ja.md` ("構造的 diff(操作13)の設計").
+    /// `docs/design/EDIT_MODEL.ja.md` ("構造的 diff(操作13)の設計").
     #[napi]
     pub fn diff_with(&self, new_source: napi::bindgen_prelude::Buffer) -> JsEditResult {
         let edit = self.inner.diff_with(&new_source);
@@ -210,7 +210,8 @@ impl JsSyntaxTree {
 
     /// Parser-recovery diagnostics for this tree (`ERROR` / `MISSING` nodes
     /// tree-sitter produced while parsing), in preorder. See
-    /// `docs/SOURCE_MAPPING_PLAN.ja.md` ("Diagnostics Span").
+    /// `docs/design/SOURCE_MODEL.ja.md` ("Diagnostics は tree-sitter の
+    /// ERROR/MISSING node から直接読む").
     #[napi]
     pub fn diagnostics(&self) -> Vec<JsDiagnostic> {
         self.inner.diagnostics().into_iter().map(JsDiagnostic::from_core).collect()

@@ -3,8 +3,8 @@
 //! This crate's public surface is `Lang`, `ParseResult`, `SyntaxTree` (+
 //! `NodeId`, `ByteSpan`, `Point`, `EditResult`, `Diagnostic`, `Severity`), and
 //! `parse_str` / `parse_bytes` / `parse_file` - see the "astars-core" class
-//! diagram in `docs/architecture/ARCHITECTURE.ja.md` for the design this
-//! module implements, and `docs/STRATEGY.ja.md` for the design bets it
+//! diagram in `docs/design/ARCHITECTURE.ja.md` for the design this
+//! module implements, and `docs/strategy/STRATEGY.ja.md` for the design bets it
 //! must honor: parser-isolated (no tree_sitter types in the public surface),
 //! binding-agnostic (no pyo3/napi-rs dependency in this crate).
 
@@ -66,7 +66,7 @@ pub fn parse_str(source: &str, lang: Lang) -> ParseResult {
 /// UTF-8 - invalid byte sequences surface as replacement characters when
 /// read back via `SyntaxTree::source_of`, not as a parse failure (mirrors
 /// the Python prototype's `errors="replace"` policy; see
-/// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "SourceUnit.source").
+/// `docs/design/SOURCE_MODEL.ja.md`'s "文字列は lossy に decode する").
 pub fn parse_bytes(source: &[u8], lang: Lang) -> ParseResult {
     let tree = ParseAdapter::parse(source, lang);
     ParseResult { lang, tree }
@@ -79,8 +79,8 @@ pub fn parse_bytes(source: &[u8], lang: Lang) -> ParseResult {
 /// are always clean - unlike `parse_bytes` called directly, there is no
 /// lossy replacement path here except for malformed byte sequences *within*
 /// the declared encoding (mirrors the Python prototype's
-/// `parse_file(..., encoding=...)`; see `docs/SOURCE_MAPPING_PLAN.ja.md`'s
-/// "SourceUnit.source").
+/// `parse_file(..., encoding=...)`; see `docs/design/SOURCE_MODEL.ja.md`'s
+/// "文字列は lossy に decode する").
 pub fn parse_file(path: &Path, lang: Lang, encoding: &str) -> Result<ParseResult, AstarsError> {
     let bytes = std::fs::read(path).map_err(AstarsError::Io)?;
     let encoding = encoding_rs::Encoding::for_label(encoding.as_bytes())

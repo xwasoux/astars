@@ -7,17 +7,17 @@
 
 関連文書:
 
-- [STRATEGY.ja.md](STRATEGY.ja.md) — ビジョンと Core Differentiator(「強みの実現状況」が何を実現しようとしているかの根拠)
-- [architecture/ARCHITECTURE.ja.md](architecture/ARCHITECTURE.ja.md) — クラス図と v0 scope
-- [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) — 編集まわりの設計根拠、シナリオ、操作リスト
-- [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)
-- [SOURCE_MAPPING_PLAN.ja.md](SOURCE_MAPPING_PLAN.ja.md)
-- [RELEASE_STRATEGY.ja.md](RELEASE_STRATEGY.ja.md)
-- [ROADMAP.ja.md](ROADMAP.ja.md)
+- [strategy/STRATEGY.ja.md](strategy/STRATEGY.ja.md) — ビジョンと Core Differentiator(「強みの実現状況」が何を実現しようとしているかの根拠)
+- [design/ARCHITECTURE.ja.md](design/ARCHITECTURE.ja.md) — クラス図と v0 scope
+- [design/EDIT_MODEL.ja.md](design/EDIT_MODEL.ja.md) — 編集まわりの設計根拠、シナリオ、操作リスト
+- [release/NEXT_RELEASE_PLAN.ja.md](release/NEXT_RELEASE_PLAN.ja.md)
+- [design/NODE_RESOLUTION.ja.md](design/NODE_RESOLUTION.ja.md)
+- [release/RELEASE_STRATEGY.ja.md](release/RELEASE_STRATEGY.ja.md)
+- [strategy/ROADMAP.ja.md](strategy/ROADMAP.ja.md)
 
 ## v0 Scope: 完了
 
-Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindings/node`)で、以下を実装・動作確認済み(Python/Node 両方で実機確認)。設計の詳細は [architecture/ARCHITECTURE.ja.md](architecture/ARCHITECTURE.ja.md) のクラス図、編集まわりの根拠は [architecture/EDIT_MODEL.ja.md](architecture/EDIT_MODEL.ja.md) を参照。
+Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindings/node`)で、以下を実装・動作確認済み(Python/Node 両方で実機確認)。設計の詳細は [design/ARCHITECTURE.ja.md](design/ARCHITECTURE.ja.md) のクラス図、編集まわりの根拠は [design/EDIT_MODEL.ja.md](design/EDIT_MODEL.ja.md) を参照。
 
 - monorepo 構成(`crates/astars-core` + `bindings/python` + `bindings/node`)。クラス図は draw.io から Mermaid に移行済み
 - parse: `parse_str` / `parse_bytes` / `parse_file`(`parse_file` は WHATWG encoding ラベル対応、`encoding_rs` 使用)

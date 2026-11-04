@@ -1,7 +1,7 @@
 //! `SyntaxTree` / `SyntaxNode`: the v0 program-structure type.
 //!
-//! See the "astars-core" class diagram in `docs/architecture/ARCHITECTURE.ja.md`
-//! for the design this module implements, and `docs/architecture/EDIT_MODEL.ja.md`
+//! See the "astars-core" class diagram in `docs/design/ARCHITECTURE.ja.md`
+//! for the design this module implements, and `docs/design/EDIT_MODEL.ja.md`
 //! for why the design looks the way it does.
 //!
 //! v0 note: a `SyntaxNode` is tree-sitter's raw CST node, 1:1 - there is no
@@ -39,7 +39,7 @@ impl NodeId {
     /// the `SyntaxTree` it came from; passing an out-of-range value makes
     /// `SyntaxTree` methods panic (bindings catch this as an exception - see
     /// the "bindings/python" / "bindings/node" class diagrams in
-    /// `docs/architecture/ARCHITECTURE.ja.md`).
+    /// `docs/design/ARCHITECTURE.ja.md`).
     pub fn from_u32(value: u32) -> Self {
         NodeId(value)
     }
@@ -54,7 +54,8 @@ pub struct ByteSpan {
 
 /// A 0-based `(line, column)` position into the source. `column` is a byte
 /// column, not a Unicode code point or grapheme cluster column (the resolved
-/// decision in `docs/SOURCE_MAPPING_PLAN.ja.md`'s "SourceSpan"). Kept
+/// decision in `docs/design/SOURCE_MODEL.ja.md`'s "`Point.column` は byte
+/// column"). Kept
 /// separate from `ByteSpan` rather than folded into it: `ByteSpan` is `Copy`
 /// and used on every hot path (`span_of`, `EditResult.changed_ranges`
 /// overlap checks), while a `Point` is only computed on demand via
@@ -181,7 +182,7 @@ impl SyntaxTree {
     /// Lossily decodes the node's source bytes (invalid UTF-8 becomes
     /// U+FFFD), rather than panicking - `source` can contain invalid UTF-8
     /// when the tree came from `parse_bytes` on non-UTF-8 input (see
-    /// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "errors=replace" policy). Byte
+    /// `docs/design/SOURCE_MODEL.ja.md`'s "文字列は lossy に decode する"). Byte
     /// offsets from `span_of` stay correct either way; only this rendered
     /// text is lossy.
     pub fn source_of(&self, id: NodeId) -> String {
@@ -191,7 +192,7 @@ impl SyntaxTree {
 
     /// Converts a byte offset into this tree's source into a 0-based
     /// `(line, column)` `Point` (`column` is a byte column; see
-    /// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "SourceSpan"). Call it on both
+    /// `docs/design/SOURCE_MODEL.ja.md`'s "`Point.column` は byte column"). Call it on both
     /// ends of a `ByteSpan` to get a span's start/end points - there is no
     /// combined helper for that yet, since nothing needs one in v0.
     pub fn point_at(&self, byte_offset: usize) -> Point {
@@ -405,7 +406,8 @@ impl SyntaxTree {
     /// `MISSING` nodes, in preorder. Reads `self.raw` directly rather than
     /// walking the `SyntaxNode` arena, since recovery nodes are a
     /// tree-sitter-specific concept that `SyntaxNode` does not record (see
-    /// `docs/SOURCE_MAPPING_PLAN.ja.md`'s "Diagnostics Span").
+    /// `docs/design/SOURCE_MODEL.ja.md`'s "Diagnostics は tree-sitter の
+    /// ERROR/MISSING node から直接読む").
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
         let root = self.raw.root_node();
         if !root.has_error() {

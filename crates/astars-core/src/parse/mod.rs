@@ -4,7 +4,7 @@
 //! is a private module, so `ParseAdapter` is unreachable from outside the
 //! crate regardless of its own visibility. This mirrors the
 //! "parse «package, internal»" boundary in the "astars-core" class diagram
-//! in `docs/architecture/ARCHITECTURE.ja.md`.
+//! in `docs/design/ARCHITECTURE.ja.md`.
 
 mod adapter;
 

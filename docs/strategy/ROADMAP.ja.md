@@ -6,7 +6,7 @@
 
 この文書は、Astars の導入ストーリーと近い実装戦略を整理する。
 
-リリース単位の直近計画は [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md) で管理する。
+リリース単位の直近計画は [NEXT_RELEASE_PLAN.ja.md](../release/NEXT_RELEASE_PLAN.ja.md) で管理する。
 
 ## 導入ストーリー
 
@@ -45,7 +45,7 @@ Python reference path が安定したら、second language を使って adapter 
 
 ## 近い戦略
 
-version ごとの release scope は [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)、直近の action item は [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md) を参照する。
+version ごとの release scope は [NEXT_RELEASE_PLAN.ja.md](../release/NEXT_RELEASE_PLAN.ja.md)、直近の action item は [ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md) を参照する。
 
 ## 成功 / 失敗シグナル
 

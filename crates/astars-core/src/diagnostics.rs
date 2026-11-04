@@ -1,7 +1,7 @@
 //! Parser-recovery diagnostics: tree-sitter's `ERROR` / `MISSING` nodes,
 //! normalized into a parser-agnostic shape. Ports the behavior documented in
-//! `docs/SOURCE_MAPPING_PLAN.ja.md` ("Diagnostics Span") from the Python
-//! prototype's `Diagnostic` / `_diagnostics_from_tree`.
+//! `docs/design/SOURCE_MODEL.ja.md` ("Diagnostics は tree-sitter の ERROR/MISSING
+//! node から直接読む") from the Python prototype's `Diagnostic` / `_diagnostics_from_tree`.
 
 use crate::syntax::ByteSpan;
 

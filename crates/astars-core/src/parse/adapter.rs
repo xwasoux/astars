@@ -1,6 +1,6 @@
 //! `ParseAdapter`: the only place in this crate allowed to touch tree-sitter's
 //! parser API directly - see the "astars-core" class diagram in
-//! `docs/architecture/ARCHITECTURE.ja.md`.
+//! `docs/design/ARCHITECTURE.ja.md`.
 //!
 //! Its job stops at "parse". Turning the resulting `tree_sitter::Tree` into
 //! our own arena (`SyntaxTree`) is `SyntaxTree`'s job, not this module's -

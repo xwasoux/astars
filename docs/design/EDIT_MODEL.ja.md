@@ -5,7 +5,7 @@
 関連文書:
 
 - [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
-- [../STRATEGY.ja.md](../STRATEGY.ja.md)
+- [../strategy/STRATEGY.ja.md](../strategy/STRATEGY.ja.md)
 - [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 
 この文書は、v0 scope の AST node 構造(`SyntaxTree`/`SyntaxNode`)に着手する前に、「木構造のノード操作と、それに追従するテキスト編集をどう実現するか」を整理したものである。データ構造そのものは [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) の「astars-core」クラス図の設計で実装済み。本書の後半(「編集 primitive(v1)の設計」節)は、そのデータ構造を前提に、操作7・8(編集 primitive と編集前後比較)を実装するための設計を追記したものである。

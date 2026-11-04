@@ -2,9 +2,9 @@
 
 関連文書:
 
-- [STRATEGY.ja.md](STRATEGY.ja.md)
+- [../strategy/STRATEGY.ja.md](../strategy/STRATEGY.ja.md)
 - [NEXT_RELEASE_PLAN.ja.md](NEXT_RELEASE_PLAN.ja.md)
-- [ACTION_ITEMS.ja.md](ACTION_ITEMS.ja.md)
+- [../ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
 
 この文書は、Rust core(`crates/astars-core` + `bindings/python` + `bindings/node`)の branch strategy、versioning、publish 方針を定義する。
 
