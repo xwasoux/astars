@@ -1,8 +1,8 @@
 //! `SyntaxTree` / `SyntaxNode`: the v0 program-structure type.
 //!
 //! See the "astars-core" class diagram in `docs/design/ARCHITECTURE.ja.md`
-//! for the design this module implements, and `docs/design/EDIT_MODEL.ja.md`
-//! for why the design looks the way it does.
+//! for the implementation boundary, and `docs/design/PROGRAM_MODEL.ja.md` /
+//! `docs/design/OPERATION_MODEL.ja.md` for the model it currently approximates.
 //!
 //! v0 note: a `SyntaxNode` is tree-sitter's raw CST node, 1:1 - there is no
 //! rule-based normalization yet (that would be a future `AstNode` layer on
@@ -11,7 +11,7 @@
 //! `SyntaxGraph`-style indirection would come back.
 //!
 //! `replace` / `EditResult` / `unchanged_in` are the v1 edit primitive (see
-//! EDIT_MODEL.ja.md's "編集 primitive(v1)の設計"). v1 is deliberately naive:
+//! ADR 0002). v1 is deliberately naive:
 //! source bytes are spliced with a plain copy (no Piece Table yet), and
 //! "did this node change" is answered via `tree_sitter::Tree::changed_ranges`
 //! rather than any `NodeId` bookkeeping across trees - a `NodeId` from the
@@ -22,14 +22,14 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::Lang;
 
 /// Index into a `SyntaxTree`'s arena. Cheap to copy, safe to hand across the
-/// FFI boundary to bindings (constraint 12 in EDIT_MODEL.ja.md) - unlike a
+/// FFI boundary to bindings - unlike a
 /// borrowed `&SyntaxNode`, it has no lifetime tied to the tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(u32);
 
 impl NodeId {
     /// Escape hatch for binding crates, which can only pass plain integers
-    /// across FFI (constraint 12 in EDIT_MODEL.ja.md) and need to round-trip
+    /// across FFI and need to round-trip
     /// them back into `NodeId` to call `SyntaxTree` methods.
     pub fn as_u32(self) -> u32 {
         self.0
@@ -69,8 +69,7 @@ pub struct Point {
 #[derive(Debug, Clone)]
 struct SyntaxNode {
     // tree_sitter::Node::kind() is tied to the tree's lifetime, not actually
-    // 'static, so this is owned rather than borrowed (see EDIT_MODEL.ja.md /
-    // the diagram for the original &'static str plan - this is a deviation).
+    // 'static, so this is owned rather than borrowed.
     kind: String,
     field_name: Option<String>,
     span: ByteSpan,
@@ -92,7 +91,7 @@ pub struct SyntaxTree {
     root: NodeId,
     source: Vec<u8>,
     // Kept so the edit primitive can do `raw.edit(...)` +
-    // `parser.parse(..., Some(&raw))` (EDIT_MODEL.ja.md's edit policy)
+    // `parser.parse(..., Some(&raw))` (ADR 0002)
     // instead of an unrelated from-scratch re-parse. Never exposed publicly:
     // SyntaxNode itself holds no tree-sitter type, so this stays an
     // implementation detail of SyntaxTree alone.
@@ -106,7 +105,13 @@ impl SyntaxTree {
     pub(crate) fn from_tree_sitter(lang: Lang, raw: tree_sitter::Tree, source: Vec<u8>) -> Self {
         let mut nodes = Vec::new();
         let root = Self::build_node(raw.root_node(), None, None, &mut nodes);
-        Self { nodes, root, source, raw, lang }
+        Self {
+            nodes,
+            root,
+            source,
+            raw,
+            lang,
+        }
     }
 
     fn build_node(
@@ -132,7 +137,8 @@ impl SyntaxTree {
         if cursor.goto_first_child() {
             loop {
                 let child_field_name = cursor.field_name();
-                let child_id = Self::build_node(cursor.node(), Some(my_id), child_field_name, nodes);
+                let child_id =
+                    Self::build_node(cursor.node(), Some(my_id), child_field_name, nodes);
                 children.push(child_id);
                 if !cursor.goto_next_sibling() {
                     break;
@@ -146,12 +152,17 @@ impl SyntaxTree {
 
     /// Preorder traversal of the whole tree, starting at the root.
     pub fn walk(&self) -> impl Iterator<Item = NodeId> + '_ {
-        Preorder { tree: self, stack: vec![self.root] }
+        Preorder {
+            tree: self,
+            stack: vec![self.root],
+        }
     }
 
     /// All nodes whose tree-sitter kind equals `kind`, in preorder.
     pub fn find(&self, kind: &str) -> Vec<NodeId> {
-        self.walk().filter(|id| self.node(*id).kind == kind).collect()
+        self.walk()
+            .filter(|id| self.node(*id).kind == kind)
+            .collect()
     }
 
     /// The most specific node covering `offset`, or `None` if `offset` is at
@@ -229,7 +240,7 @@ impl SyntaxTree {
     /// grammars already name fields like `name`, `left`/`right`, `body`; this
     /// just exposes that existing vocabulary rather than giving "name" (or
     /// any other field) special treatment in `astars-core` (see
-    /// EDIT_MODEL.ja.md's "名前/kind アドレス指定(操作10)の設計" - finding
+    /// ADR 0003 - finding
     /// a node by name is `find(kind)` + this + `source_of`, composed by the
     /// caller, not a dedicated API). Returns the first match, mirroring
     /// `tree_sitter::Node::child_by_field_name`; a field that legitimately
@@ -242,8 +253,8 @@ impl SyntaxTree {
     }
 
     /// Replace `target`'s source span with `new_text`, producing a new tree.
-    /// `self` is untouched (immutable edit) - see EDIT_MODEL.ja.md's "編集
-    /// primitive(v1)の設計". insert/delete are expressed as `replace` with
+    /// `self` is untouched (immutable edit) - see ADR 0002. insert/delete are
+    /// expressed as `replace` with
     /// an empty `target` span or an empty `new_text`, respectively; v1 does
     /// not add separate methods for them.
     ///
@@ -255,8 +266,9 @@ impl SyntaxTree {
     pub fn replace(&self, target: NodeId, new_text: &str) -> EditResult {
         let span = self.span_of(target);
 
-        let mut new_source =
-            Vec::with_capacity(self.source.len() - (span.end_byte - span.start_byte) + new_text.len());
+        let mut new_source = Vec::with_capacity(
+            self.source.len() - (span.end_byte - span.start_byte) + new_text.len(),
+        );
         new_source.extend_from_slice(&self.source[..span.start_byte]);
         new_source.extend_from_slice(new_text.as_bytes());
         new_source.extend_from_slice(&self.source[span.end_byte..]);
@@ -303,7 +315,7 @@ impl SyntaxTree {
     /// sources *not* connected by a `tree.edit()` lineage of their own (e.g.
     /// two versions of the same file, like a git diff) - and returns an
     /// `EditResult` as if `new_source` had been reached by editing `self`.
-    /// See EDIT_MODEL.ja.md's "構造的 diff(操作13)の設計".
+    /// See ADR 0004.
     ///
     /// Unlike `replace`, the edit here is not known in advance: it is
     /// recovered by diffing `self.source` against `new_source` line by line
@@ -346,7 +358,10 @@ impl SyntaxTree {
 
         let old_changed_ranges = hunks
             .iter()
-            .map(|&(old_start, old_end, _, _)| ByteSpan { start_byte: old_start, end_byte: old_end })
+            .map(|&(old_start, old_end, _, _)| ByteSpan {
+                start_byte: old_start,
+                end_byte: old_end,
+            })
             .collect();
 
         let mut edited_raw = self.raw.clone();
@@ -421,13 +436,19 @@ impl SyntaxTree {
                 diagnostics.push(Diagnostic {
                     severity: Severity::Error,
                     message: "syntax error".to_string(),
-                    span: ByteSpan { start_byte: node.start_byte(), end_byte: node.end_byte() },
+                    span: ByteSpan {
+                        start_byte: node.start_byte(),
+                        end_byte: node.end_byte(),
+                    },
                 });
             } else if node.is_missing() {
                 diagnostics.push(Diagnostic {
                     severity: Severity::Error,
                     message: format!("missing syntax node: {}", node.kind()),
-                    span: ByteSpan { start_byte: node.start_byte(), end_byte: node.end_byte() },
+                    span: ByteSpan {
+                        start_byte: node.start_byte(),
+                        end_byte: node.end_byte(),
+                    },
                 });
             }
 
@@ -486,11 +507,13 @@ impl EditResult {
     /// Did `id` (a node in `self.tree`, the tree produced by the edit)
     /// already exist, unchanged, before the edit? The symmetric counterpart
     /// of `SyntaxTree::unchanged_in`, checked from the new tree's side
-    /// instead of the old tree's side - see EDIT_MODEL.ja.md's "構造的
-    /// diff(操作13)の設計".
+    /// instead of the old tree's side - see ADR 0004.
     pub fn unchanged(&self, id: NodeId) -> bool {
         let span = self.tree.span_of(id);
-        !self.changed_ranges.iter().any(|changed| spans_overlap(span, *changed))
+        !self
+            .changed_ranges
+            .iter()
+            .any(|changed| spans_overlap(span, *changed))
     }
 }
 
@@ -501,7 +524,7 @@ fn spans_overlap(a: ByteSpan, b: ByteSpan) -> bool {
 /// 0-based `(line, column)` for a byte offset into `source`, scanning
 /// linearly - fine for an occasional lookup (a single edit call, or
 /// rendering one diagnostic), not optimized for repeated/bulk use (see
-/// EDIT_MODEL.ja.md: Piece Table work is deferred, not v1 scope). Shared by
+/// ADR 0002: Piece Table work is deferred, not v1 scope). Shared by
 /// `point_at` (the `tree_sitter::Point` used internally by `replace`) and
 /// `SyntaxTree::point_at` (the public `Point`), so the scan logic lives in
 /// exactly one place.
@@ -615,7 +638,9 @@ mod tests {
     #[test]
     fn node_at_returns_most_specific_node() {
         let tree = parse_str("x = 1\n", Lang::Python).tree;
-        let id = tree.node_at(0).expect("offset 0 should be inside the module");
+        let id = tree
+            .node_at(0)
+            .expect("offset 0 should be inside the module");
         // the most specific node at offset 0 should not be the whole module
         assert_ne!(tree.span_of(id), tree.span_of(tree.root));
     }
@@ -679,8 +704,12 @@ mod tests {
         let tree = parse_str("x = 1\n", Lang::Python).tree;
         let assignment = tree.find("assignment")[0];
 
-        let left = tree.child_by_field_name(assignment, "left").expect("left field");
-        let right = tree.child_by_field_name(assignment, "right").expect("right field");
+        let left = tree
+            .child_by_field_name(assignment, "left")
+            .expect("left field");
+        let right = tree
+            .child_by_field_name(assignment, "right")
+            .expect("right field");
         assert_eq!(tree.source_of(left), "x");
         assert_eq!(tree.source_of(right), "1");
     }
@@ -753,7 +782,11 @@ mod tests {
         let diff = old_tree.diff_with(source.as_bytes());
 
         for id in old_tree.walk() {
-            assert!(old_tree.unchanged_in(id, &diff), "{:?} should be unchanged", id);
+            assert!(
+                old_tree.unchanged_in(id, &diff),
+                "{:?} should be unchanged",
+                id
+            );
         }
         for id in diff.tree.walk() {
             assert!(diff.unchanged(id), "{:?} should be unchanged", id);

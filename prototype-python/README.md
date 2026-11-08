@@ -6,5 +6,6 @@ It is kept as a **frozen reference** for the Rust core migration — see
 
 It is not under active development. New work happens in `crates/astars-core` and `bindings/`
 at the repository root. Design decisions already validated here (source mapping behavior,
-edge cases, tie-breaker policy) carry over into the Rust design; see
-[`docs/design/NODE_RESOLUTION.ja.md`](../docs/design/NODE_RESOLUTION.ja.md) for the resolved decisions.
+edge cases, tie-breaker policy) carry over into the Rust design; see the
+[`Program Model`](../docs/design/PROGRAM_MODEL.ja.md) and
+[`ADR 0001`](../docs/design/decisions/0001-state-local-node-identity-and-controlled-errors.ja.md).

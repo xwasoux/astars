@@ -6,7 +6,7 @@
 //! `PyDiagnostic` exist purely to mirror `astars_core` types across the FFI
 //! boundary; see the "bindings/python" class diagram in
 //! `docs/design/ARCHITECTURE.ja.md` for the design this module
-//! implements (the edit primitive is explained in `docs/design/EDIT_MODEL.ja.md`,
+//! implements (the edit primitive is explained in `docs/design/OPERATION_MODEL.ja.md`,
 //! diagnostics behavior in `docs/design/SOURCE_MODEL.ja.md`).
 //!
 //! Python side: `import _astars` (the eventual `import astars` is a separate,
@@ -91,13 +91,17 @@ impl PySyntaxTree {
 
     /// All node ids in preorder, collected into one `list[int]` - not a
     /// lazy iterator, so walking a large tree costs one FFI call, not one
-    /// per node (EDIT_MODEL.ja.md operation 11).
+    /// per node (see `docs/design/ARCHITECTURE.ja.md`).
     fn walk(&self) -> Vec<u32> {
         self.inner.walk().map(NodeId::as_u32).collect()
     }
 
     fn find(&self, kind: &str) -> Vec<u32> {
-        self.inner.find(kind).into_iter().map(NodeId::as_u32).collect()
+        self.inner
+            .find(kind)
+            .into_iter()
+            .map(NodeId::as_u32)
+            .collect()
     }
 
     fn node_at(&self, offset: usize) -> Option<u32> {
@@ -124,7 +128,7 @@ impl PySyntaxTree {
     /// The child of `id` whose field name is `field_name` (e.g. `"name"` on
     /// a `function_definition`, `"left"`/`"right"` on an `assignment`). To
     /// find a node by name, combine with `find(kind)` and `source_of` - see
-    /// `docs/design/EDIT_MODEL.ja.md`'s "名前/kind アドレス指定(操作10)の設計".
+    /// ADR 0003 (`docs/design/decisions/0003-analysis-neutral-field-navigation.ja.md`).
     fn child_by_field_name(&self, id: u32, field_name: &str) -> Option<u32> {
         self.inner
             .child_by_field_name(NodeId::from_u32(id), field_name)
@@ -138,7 +142,7 @@ impl PySyntaxTree {
 
     /// The whole subtree rooted at `id`, as one `list[PyNodeInfo]` - bulk
     /// export for rendering/serializing a tree without node-by-node FFI
-    /// calls (EDIT_MODEL.ja.md scenario D / operation 11).
+    /// calls (see `docs/strategy/USE_CASES.ja.md`).
     fn dump(&self, id: u32) -> Vec<PyNodeInfo> {
         let mut result = Vec::new();
         let mut stack = vec![NodeId::from_u32(id)];
@@ -157,7 +161,7 @@ impl PySyntaxTree {
 
     /// Replace `target`'s source span with `new_text`, producing a new
     /// `PySyntaxTree` wrapped in a `PyEditResult`. `self` is untouched. See
-    /// `docs/design/EDIT_MODEL.ja.md` ("編集 primitive(v1)の設計").
+    /// ADR 0002 (`docs/design/decisions/0002-stage-2-source-splice-and-incremental-reparse.ja.md`).
     fn replace(&self, target: u32, new_text: &str) -> PyEditResult {
         let edit = self.inner.replace(NodeId::from_u32(target), new_text);
         PyEditResult { inner: edit }
@@ -166,7 +170,7 @@ impl PySyntaxTree {
     /// Did `id` (a node in `self`, the tree *before* some `edit`) survive
     /// into `edit.tree` unchanged? `id` must come from `self`, not from
     /// `edit.tree` - `NodeId`s from different trees are not comparable
-    /// (see `docs/design/EDIT_MODEL.ja.md`).
+    /// (see `docs/design/PROGRAM_MODEL.ja.md`).
     fn unchanged_in(&self, id: u32, edit: &PyEditResult) -> bool {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
     }
@@ -175,7 +179,7 @@ impl PySyntaxTree {
     /// sources, not connected by a `replace()` lineage (e.g. two versions
     /// of the same file) - and returns a `PyEditResult` as if `new_source`
     /// had been reached by editing `self`. See
-    /// `docs/design/EDIT_MODEL.ja.md` ("構造的 diff(操作13)の設計").
+    /// ADR 0004 (`docs/design/decisions/0004-independent-source-diff-is-inferred.ja.md`).
     fn diff_with(&self, new_source: &[u8]) -> PyEditResult {
         let edit = self.inner.diff_with(new_source);
         PyEditResult { inner: edit }
@@ -186,7 +190,11 @@ impl PySyntaxTree {
     /// `docs/design/SOURCE_MODEL.ja.md` ("Diagnostics は tree-sitter の
     /// ERROR/MISSING node から直接読む").
     fn diagnostics(&self) -> Vec<PyDiagnostic> {
-        self.inner.diagnostics().into_iter().map(PyDiagnostic::from_core).collect()
+        self.inner
+            .diagnostics()
+            .into_iter()
+            .map(PyDiagnostic::from_core)
+            .collect()
     }
 }
 
@@ -324,20 +332,25 @@ mod tests {
 
     #[test]
     fn converts_lang_both_ways() {
-        assert_eq!(astars_core::Lang::from(PyLang::Python), astars_core::Lang::Python);
+        assert_eq!(
+            astars_core::Lang::from(PyLang::Python),
+            astars_core::Lang::Python
+        );
         assert_eq!(PyLang::from(astars_core::Lang::Python), PyLang::Python);
     }
 
     #[test]
     fn node_id_round_trips_through_u32() {
-        let tree = astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
+        let tree =
+            astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
         let root = tree.root();
         assert_eq!(NodeId::from_u32(root.as_u32()), root);
     }
 
     #[test]
     fn walk_and_node_info_agree_on_node_count() {
-        let core_tree = astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
+        let core_tree =
+            astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
         let py_tree = PySyntaxTree::from(core_tree);
         let ids = py_tree.walk();
         assert!(!ids.is_empty());
@@ -349,7 +362,8 @@ mod tests {
 
     #[test]
     fn dump_returns_whole_subtree() {
-        let core_tree = astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
+        let core_tree =
+            astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
         let py_tree = PySyntaxTree::from(core_tree);
         let root_id = py_tree.root_id();
         let dumped = py_tree.dump(root_id);
@@ -403,8 +417,11 @@ mod tests {
 
     #[test]
     fn parse_bytes_mirrors_parse_str_node_count() {
-        let from_bytes = PySyntaxTree::from(astars_core::parse_bytes(b"x = 1\n", astars_core::Lang::Python).tree);
-        let from_str = PySyntaxTree::from(astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
+        let from_bytes = PySyntaxTree::from(
+            astars_core::parse_bytes(b"x = 1\n", astars_core::Lang::Python).tree,
+        );
+        let from_str =
+            PySyntaxTree::from(astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
         assert_eq!(from_bytes.walk().len(), from_str.walk().len());
     }
 
@@ -438,7 +455,10 @@ mod tests {
             })
             .expect("should find the function named hello");
 
-        assert_eq!(py_tree.source_of(hello), "def hello(name):\n    return name");
+        assert_eq!(
+            py_tree.source_of(hello),
+            "def hello(name):\n    return name"
+        );
         assert_eq!(py_tree.child_by_field_name(hello, "no_such_field"), None);
     }
 }

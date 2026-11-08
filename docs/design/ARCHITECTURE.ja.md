@@ -1,484 +1,410 @@
-# Astars アーキテクチャ
+# Astars Architecture
 
-ステータス: Rust core v0 scope 完了
+ステータス: Draft
 
 関連文書:
 
-- [STRATEGY.ja.md](../strategy/STRATEGY.ja.md)
-- [ACTION_ITEMS.ja.md](../ACTION_ITEMS.ja.md)
-- [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md): 編集時のテキスト/木の追従モデル(v0 scope の AST node 構造設計の前提)
+- [README.md](README.md)
+- [PROGRAM_MODEL.ja.md](PROGRAM_MODEL.ja.md)
+- [SOURCE_MODEL.ja.md](SOURCE_MODEL.ja.md)
+- [OPERATION_MODEL.ja.md](OPERATION_MODEL.ja.md)
+- [PROVENANCE_MODEL.ja.md](PROVENANCE_MODEL.ja.md)
+- [../strategy/ROADMAP.ja.md](../strategy/ROADMAP.ja.md)
 
-関連図:
+## この文書について
 
-#### repo-structure: monorepo 構成の決定(`.drawio.svg`。VS Code の draw.io 拡張で開くと編集できる)
+この文書は、Astarsのdesign modelを実装上のlayer、crate、module、bindingへどう配置するかを定義する。
 
-![repo-structure](repo-structure.drawio.svg)
+Program State、source座標、operation、lineageの意味論は各model文書が所有する。本書ではそれらを再定義せず、依存方向、所有境界、現在の実装とtarget architectureの差を扱う。
 
-#### astars-core: `SyntaxTree` / `SyntaxNode` データ構造 + 編集 primitive + Diagnostics のクラス図
+## Architecture Goals
+
+- Program State、Operation、Provenanceを独立した責務として発展させられる
+- parser固有型をcoreのpublic APIへ漏らさない
+- pyo3 / napi-rs固有型をRust coreへ持ち込まない
+- Python研究workflowとNode coding-agent workflowが同じcore semanticsを利用する
+- source-preservingなStage 2からgraph-nativeなStage 5へ段階的に拡張できる
+- incomplete stateを例外的な失敗ではなく通常のstateとして流せる
+- modelと実装の対応、および未実装箇所を明示できる
+
+## Non-Goals
+
+- model文書に属する意味論をcrate構成から逆算して決めること
+- 現在のfile layoutを将来も固定すること
+- parser / binding / storage実装を単一方式に固定すること
+- analysis policy、variant生成戦略、similarity metricをcoreへ含めること
+- Gitや一般的なVCSを置き換えること
+
+## System Boundary
+
+Astars engineは、program sourceをProgram Stateとして取り込み、structure queryとoperation適用を提供し、その派生関係を記録する。どのnodeを編集するか、生成variantをどう評価するかはconsumerが決める。
+
+```mermaid
+flowchart TB
+    Research["Research workflow\nPython"]
+    Agent["Coding agent\nNode"]
+
+    PyBinding["Python binding"]
+    NodeBinding["Node binding"]
+
+    subgraph Engine["Astars engine"]
+        Facade["Public facade"]
+        State["Program State"]
+        Operation["Operation application"]
+        Provenance["Provenance / lineage"]
+        Source["Source representation / projection"]
+        Adapter["Language / parser adapter"]
+    end
+
+    Parser["Parser implementation\n(tree-sitter, etc.)"]
+    Storage["Optional dataset / lineage storage"]
+
+    Research --> PyBinding
+    Agent --> NodeBinding
+    PyBinding --> Facade
+    NodeBinding --> Facade
+    Facade --> State
+    Facade --> Operation
+    Facade --> Provenance
+    Operation --> State
+    Operation --> Source
+    State --> Source
+    State --> Adapter
+    Adapter --> Parser
+    Provenance -. export .-> Storage
+```
+
+Storageはtargetの概念境界だけを示す。永続形式が必要になるまで、専用crateや`STORAGE_MODEL`を先に作らない。
+
+## Target Layers
+
+### Public Facade
+
+consumerとbindingが依存する入口を提供する。
+
+- parse / state creation
+- structure query
+- operation construction / application
+- diagnostics
+- lineage query / export
+
+公開型はparser-neutralかつbinding-neutralでなければならない。各言語bindingはこの層の薄いmirror / wrapperに留める。
+
+### Program State
+
+[PROGRAM_MODEL.ja.md](PROGRAM_MODEL.ja.md)のProgram Stateとstructure layerを所有する。
+
+- state snapshot
+- syntax / normalized / editable structure
+- state-local node identity
+- incomplete / recovered stateの区別
+- structure間mapping
+
+最終的なRust module名はmodelが固まるまで確定しない。現在の`syntax` moduleを機械的に`state`へrenameすることも、この文書だけでは決めない。
+
+### Source Representation / Projection
+
+[SOURCE_MODEL.ja.md](SOURCE_MODEL.ja.md)のsource revision、byte coordinates、structure-to-source mappingを所有する。
+
+- working source bytes
+- encoding metadataとoriginal representationとの関係
+- span / point / newline
+- source-backed / source-unbacked element
+- operation後のsource projection
+
+text spliceと将来のstructural projectionが同じsource invariantsを共有する境界である。
+
+### Operation Application
+
+[OPERATION_MODEL.ja.md](OPERATION_MODEL.ja.md)のoperation lifecycleを実装する。
+
+- target resolution
+- precondition / validation
+- state transition
+- source projectionとre-parse
+- application result
+- replay / compositionに必要なoperation value
+
+Stage 2ではstructure-addressed text editを扱い、Stage 5ではgraph-native operationを扱う。同じlayerであっても内部方式が同一である必要はない。
+
+### Provenance / Lineage
+
+[PROVENANCE_MODEL.ja.md](PROVENANCE_MODEL.ja.md)のstate / operation / node lineageを所有する。
+
+- StateId / OperationId
+- derivation DAG
+- known operationによるnode relation
+- inferred correspondenceとの区別
+- deleted / inserted elementの追跡
+- dataset再現用export
+
+Stage 2の単発`EditResult`に全lineage責務を詰め込まない。lineageは複数state / operationを跨ぐ上位の文脈を必要とする。
+
+### Language / Parser Adapter
+
+parser固有処理を隔離する。
+
+- language selection
+- parse / incremental re-parse
+- parser treeからsyntax structureへの変換
+- parser recovery情報のdiagnostics化
+- grammar field / kind情報の取り込み
+
+tree-sitter型はこの境界より上のstable public APIに出さない。second languageを実装する時点でadapter contractを独立文書化する。
+
+### Bindings
+
+Python / Node固有のFFI表現、error変換、命名規約を所有する。
+
+- core valueのwrapper / mirror
+- language runtimeに適したcollection / optional表現
+- exception / thrown errorへの変換
+- package entry point
+
+binding間で外形を完全一致させることより、core semanticsを一致させることを優先する。
+
+## Dependency Rules
+
+依存方向は次を原則とする。
+
+```text
+consumer
+  -> binding
+    -> core public facade
+      -> model implementation layers
+        -> parser adapter / external parser
+```
+
+- `astars-core`はpyo3 / napi-rsに依存しない
+- Python bindingとNode bindingは互いに依存しない
+- bindingはcoreのpublic APIだけを使用する
+- parser adapterはbindingを知らない
+- parser固有型はcore public APIとbindingへ漏らさない
+- operationはconsumer固有のselection / evaluation policyへ依存しない
+- provenanceは特定のsimilarity metricへ依存しない
+- source layerは特定operation kindだけを前提にしない
+- downstream packageや研究実験はcoreから参照しない
+
+循環依存を避けるため、model間の共有valueは一方向の所有か小さな共通valueとして定義する。便宜のために巨大な`ProgramState` moduleへ全責務を集約しない。
+
+## Target Ownership Map
+
+以下は責務の割当であり、将来のfile名を確定するものではない。
+
+| Design concept | Target owner | External boundary |
+|---|---|---|
+| Program State / structure / NodeId | core state layer | core public facade |
+| source bytes / revision / span / projection | core source layer | parse input、file I/O |
+| operation value / validation / application | core operation layer | consumer command |
+| state / operation / node lineage | core provenance layerまたは上位workspace layer | dataset export |
+| parse / incremental parse | internal language adapter | parser library |
+| Python runtime representation | `bindings/python` | Python package |
+| Node runtime representation | `bindings/node` | npm package |
+| variant selection / evaluation | downstream research / agent code | Astars外 |
+
+Provenanceを`astars-core`内部に置くか、複数stateを管理する別crateへ置くかは未決定である。単一stateのvalue modelとdataset全体のworkspace modelを分ける可能性がある。
+
+## Current Implementation
+
+現行Rust実装は[ROADMAP.ja.md](../strategy/ROADMAP.ja.md)のStage 2を部分的に実装している。
+
+```text
+crates/astars-core/src/
+  lib.rs
+  diagnostics.rs
+  syntax.rs
+  parse/
+    mod.rs
+    adapter.rs
+
+bindings/python/src/lib.rs
+bindings/node/src/lib.rs
+
+prototype-python/
+  frozen reference implementation
+```
+
+### `astars-core`
+
+現在のpublic API:
+
+- `Lang`
+- `ParseResult`
+- `SyntaxTree`
+- `NodeId`, `ByteSpan`, `Point`
+- `EditResult`
+- `Diagnostic`, `Severity`
+- `AstarsError`
+- `parse_str`, `parse_bytes`, `parse_file`
+
+`syntax.rs`は現在、Program Stateの一部、source representation、query、text edit、incremental parse coordinationをまとめて担っている。Stage 2の小さな実装としては成立しているが、target model上は複数責務に跨る。
+
+`parse`はprivate moduleであり、`ParseAdapter`と`parser_for`をcrate内だけへ公開する。`tree_sitter::Tree`は`SyntaxTree`のprivate fieldとしてincremental re-parseに使われ、public APIには現れない。
 
 ```mermaid
 classDiagram
-    class Lang {
-        <<enum>>
-        Python
-    }
-    class AstarsError {
-        <<enum>>
-        Io
-        UnsupportedEncoding
-    }
-    class Severity {
-        <<enum>>
-        Error
-    }
-    class ByteSpan {
-        <<value type>>
-        +start_byte usize
-        +end_byte usize
-    }
-    class Point {
-        <<value type>>
-        +line usize
-        +column usize
-    }
-    class NodeId {
-        <<value type>>
-        +as_u32() u32
-        +from_u32(u32) NodeId
-    }
-    class Diagnostic {
-        +severity Severity
-        +message String
-        +span ByteSpan
-    }
-    class SyntaxNode {
-        <<internal>>
-        kind String
-        field_name Option~String~
-        span ByteSpan
-        parent Option~NodeId~
-        children Vec~NodeId~
+    class ParseResult {
+        +Lang lang
+        +SyntaxTree tree
     }
     class SyntaxTree {
-        -nodes Vec~SyntaxNode~
-        -source Vec~u8~
-        -raw TreeSitterTree
-        -lang Lang
-        +root NodeId
-        +walk() Iterator~NodeId~
-        +find(kind) Vec~NodeId~
-        +node_at(offset) Option~NodeId~
+        -SyntaxNode[] nodes
+        -byte[] source
+        -Tree raw
+        -Lang lang
+        +root() NodeId
+        +walk()
+        +find(kind)
+        +node_at(offset)
         +span_of(id) ByteSpan
         +source_of(id) String
-        +point_at(byte_offset) Point
-        +root() NodeId
-        +lang() Lang
-        +kind_of(id) String
-        +field_name_of(id) Option~String~
-        +parent_of(id) Option~NodeId~
-        +children_of(id) Vec~NodeId~
-        +child_by_field_name(id, field_name) Option~NodeId~
-        +replace(target, new_text) EditResult
-        +unchanged_in(id, edit) bool
-        +diagnostics() Vec~Diagnostic~
+        +replace(target, text) EditResult
+        +diff_with(source) EditResult
+        +diagnostics() Diagnostic[]
     }
     class EditResult {
-        +tree SyntaxTree
-        -changed_ranges Vec~ByteSpan~
+        +SyntaxTree tree
+        -ByteSpan[] old_changed_ranges
+        -ByteSpan[] changed_ranges
+        +unchanged(id) bool
     }
     class ParseAdapter {
         <<internal>>
         +parse(source, lang) SyntaxTree
     }
-    class ParseResult {
-        +lang Lang
-        +tree SyntaxTree
-    }
-    class astars_core {
-        <<module>>
-        +parse_str(source, lang) ParseResult
-        +parse_bytes(source, lang) ParseResult
-        +parse_file(path, lang, encoding) ParseResult
-    }
 
-    astars_core ..> ParseAdapter
-    astars_core ..> ParseResult
-    astars_core ..> AstarsError
-    ParseAdapter ..> SyntaxTree
     ParseResult *-- SyntaxTree
-    ParseResult --> Lang
-    SyntaxTree *-- SyntaxNode
-    SyntaxTree --> NodeId
-    SyntaxTree ..> Point
-    SyntaxNode --> NodeId
-    SyntaxNode --> ByteSpan
     SyntaxTree ..> EditResult
     EditResult *-- SyntaxTree
-    EditResult --> ByteSpan
-    SyntaxTree ..> Diagnostic
-    Diagnostic --> Severity
-    Diagnostic --> ByteSpan
+    ParseAdapter ..> SyntaxTree
 ```
 
-- parser-isolated: `SyntaxNode` は tree-sitter 型を一切持たない。`raw`(図の `TreeSitterTree` = `tree_sitter::Tree`)は private field で edit primitive の incremental re-parse 専用
-- `kind`/`field_name` は当初 `&'static str` の予定だったが、`tree_sitter::Node::kind()` が tree の lifetime に紐づくため `String` に変更(設計からの逸脱)
-- `source_of` は lossy UTF-8 decode(`parse_bytes` が非 UTF-8 を受け付けるため)
-- `EditResult.changed_ranges` は private。`unchanged_in` は `NodeId` 等価ではなく byte span の overlap で判定する(新旧 tree は別 arena で `NodeId` を直接比較できないため)
-- `Diagnostic.span` は non-optional(v0 の発生源が tree-sitter の `ERROR`/`MISSING` node のみのため)。`Severity` は v0 では `Error` の1 variant のみ
-- `point_at` は `ByteSpan` の start/end byte に対して個別に呼ぶ(`ByteSpan` 自体に point は持たせない)。`line`/`column` は 0-based、`column` は byte column(Unicode code point や grapheme cluster ではない)。`replace` 内部の `tree_sitter::Point` 変換とスキャンロジックを共有している
-- `child_by_field_name` は `field_name_of` の逆方向(子 → 親から見た field 名)に対する、親 → 特定 field の子という向きの primitive。tree-sitter の grammar が既に持つ field 名(`name`、`left`/`right`、`body` 等)をそのまま公開するだけで、「名前」を特別扱いする概念は core に持ち込まない。「kind `function_definition` で名前が `hello` の node を探す」は `find(kind) + child_by_field_name(id, "name") + source_of` の組み合わせで呼び出し側が組み立てる(専用の `find_by_name` のような API は追加しない)
-
-#### bindings/python(crate `astars-py`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
-
-```mermaid
-classDiagram
-    class PyLang {
-        <<pyclass>>
-        Python
-    }
-    class PyNodeInfo {
-        <<pyclass>>
-        +id int
-        +kind str
-        +field_name str or None
-        +start_byte int
-        +end_byte int
-        +parent int or None
-        +children list~int~
-    }
-    class PyDiagnostic {
-        <<pyclass>>
-        +severity str
-        +message str
-        +span IntPair
-    }
-    class PySyntaxTree {
-        <<pyclass>>
-        -inner CoreSyntaxTree
-        +root_id() int
-        +walk() list~int~
-        +find(kind) list~int~
-        +node_at(offset) int or None
-        +span_of(id) IntPair
-        +source_of(id) str
-        +point_at(byte_offset) IntPair
-        +child_by_field_name(id, field_name) int or None
-        +node_info(id) PyNodeInfo
-        +dump(id) list~PyNodeInfo~
-        +replace(target, new_text) PyEditResult
-        +unchanged_in(id, edit) bool
-        +diagnostics() list~PyDiagnostic~
-    }
-    class PyEditResult {
-        <<pyclass>>
-        -inner CoreEditResult
-        +tree PySyntaxTree
-    }
-    class PyParseResult {
-        <<pyclass>>
-        +lang PyLang
-        +tree PySyntaxTree
-    }
-    class astars_module {
-        <<pymodule _astars>>
-        +parse_str(source, lang) PyParseResult
-        +parse_bytes(source, lang) PyParseResult
-        +parse_file(path, lang, encoding) PyParseResult
-    }
-
-    astars_module ..> PyParseResult
-    PyParseResult o-- PySyntaxTree
-    PyParseResult --> PyLang
-    PySyntaxTree ..> PyEditResult
-    PyEditResult o-- PySyntaxTree
-    PySyntaxTree ..> PyDiagnostic
-    PySyntaxTree ..> PyNodeInfo
-```
-
-- module 名は `_astars`。`parse_file` の `encoding` 引数はデフォルト `"utf-8"`(WHATWG Encoding Standard のラベル)。I/O 失敗は `OSError`、不明な `encoding` ラベルは `ValueError`
-- `PySyntaxTree`/`PyEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper
-- `PyEditResult.tree` getter は `Py::new` で新しい `PySyntaxTree` を作って返す
-
-#### bindings/node(crate `astars-node`): `SyntaxTree` 公開 + 編集 primitive + Diagnostics のクラス図
-
-```mermaid
-classDiagram
-    class JsLang {
-        <<napi enum>>
-        Python
-    }
-    class JsNodeInfo {
-        <<napi object>>
-        +id number
-        +kind string
-        +fieldName string or null
-        +startByte number
-        +endByte number
-        +parent number or null
-        +children number array
-    }
-    class JsDiagnostic {
-        <<napi object>>
-        +severity string
-        +message string
-        +span number array
-    }
-    class JsSyntaxTree {
-        <<napi class>>
-        -inner CoreSyntaxTree
-        -lang JsLang
-        +lang() JsLang
-        +rootId() number
-        +walk() number array
-        +find(kind) number array
-        +nodeAt(offset) number or null
-        +spanOf(id) number array
-        +sourceOf(id) string
-        +pointAt(byteOffset) number array
-        +childByFieldName(id, fieldName) number or null
-        +nodeInfo(id) JsNodeInfo
-        +dump(id) JsNodeInfo array
-        +replace(target, newText) JsEditResult
-        +unchangedIn(id, edit) boolean
-        +diagnostics() JsDiagnostic array
-    }
-    class JsEditResult {
-        <<napi class>>
-        -inner CoreEditResult
-        +tree() JsSyntaxTree
-    }
-    class astars_native {
-        <<napi module>>
-        +parseStr(source, lang) JsSyntaxTree
-        +parseBytes(source, lang) JsSyntaxTree
-        +parseFile(path, lang, encoding) JsSyntaxTree
-    }
-
-    astars_native ..> JsSyntaxTree
-    JsSyntaxTree --> JsLang
-    JsSyntaxTree ..> JsEditResult
-    JsEditResult ..> JsSyntaxTree
-    JsSyntaxTree ..> JsDiagnostic
-    JsSyntaxTree ..> JsNodeInfo
-```
-
-- npm package 名は `@astars/native`。メソッド名/フィールド名は napi-rs の規約で camelCase になる
-- **設計からの逸脱**: `JsParseResult` は存在しない。napi-rs の `#[napi(object)]` は全 field に双方向変換を要求し `#[napi]` class を直接持てないため、`lang` を `JsSyntaxTree` 自身の field(getter)に畳み込み、`parseStr`/`parseBytes`/`parseFile` は `JsSyntaxTree` を直接返す
-- `parseFile` の `encoding` 引数は optional(デフォルト `"utf-8"`。WHATWG Encoding Standard のラベル)。I/O 失敗・不明な `encoding` ラベルはいずれも throw(`napi::Error::from_reason`)
-- `JsSyntaxTree`/`JsEditResult` の `inner` は、`astars_core` の `SyntaxTree`/`EditResult`(図の `CoreSyntaxTree`/`CoreEditResult`)を private field として保持する薄い wrapper。`JsEditResult.tree()` getter は `SyntaxTree` を clone して返す
-
-> 旧 Python 実装(`astars/` package)前提の版からは `STRATEGY.ja.md` の Rust 移行方針に伴い書き直している。旧実装は `prototype-python/` に frozen reference として残り、検証済みの設計判断は `NODE_RESOLUTION.ja.md` に引き継ぐ。
-
-この文書は、Astars の概念モデルを実装上の crate / module boundary に落とすための文書である。現行コードをそのまま正当化する文書ではなく、`astars` engine として安定させるべき目標アーキテクチャを示す。
-
-## Architecture Goals
-
-Astars の architecture は、次の性質を満たすことを目指す。
-
-- parser-specific API(tree-sitter)を core から隔離する
-- binding-specific API(pyo3 / napi-rs)を core から隔離する — core は Rust だけに依存する
-- source mapping を core value として扱う
-- analysis-specific な判断を core に入れない
-- downstream(Python ML research / Node agent framework)が依存しやすい小さな public API を持つ
-- Python を reference 言語としつつ、他言語追加の余地を残す
-- source-aware edit primitive を提供できる構造にする
-
-## Repository Layout
-
-monorepo 構成の決定は [repo-structure.drawio.svg](repo-structure.drawio.svg) を参照。実際に作成したディレクトリ構成は次の通り。
-
-```text
-astars/                      (repo root, Cargo workspace)
-  Cargo.toml                 workspace manifest
-
-  crates/
-    astars-core/              parse / normalize / map / query / edit の core engine
-      src/
-        lib.rs                 public facade: Lang, ParseResult, parse_str()
-        parse/                 internal module(非 pub。crate 外から不可視)
-          mod.rs
-          adapter.rs            ParseAdapter: tree-sitter を直接叩く唯一の場所
-          raw_tree.rs           RawTree: tree_sitter::Tree を保持する internal struct
-
-  bindings/
-    python/                   crate `astars-py`、lib 名 `_astars`
-      src/lib.rs               PyLang / PyParseResult(astars_core の mirror + convert)
-      pyproject.toml           maturin build-backend
-    node/                     crate `astars-node`、npm package `@astars/native`
-      src/lib.rs               JsLang / JsParseResult(astars_core の mirror + convert)
-      build.rs                 napi_build::setup()
-      package.json              @napi-rs/cli
-
-  prototype-python/          旧 Python 実装(frozen reference, 非 active development)
-
-  docs/
-    README.md                 ドキュメント構成の索引
-    ACTION_ITEMS.ja.md        作業再開時に最初に読む短期 action item
-    strategy/                 なぜ作るか(STRATEGY/USE_CASES/ROADMAP)
-    design/                   どう作るか。本書 + EDIT_MODEL/NODE_RESOLUTION/SOURCE_MODEL.ja.md + draw.io 図
-    release/                  いつ・どの順で出すか(RELEASE_STRATEGY/NEXT_RELEASE_PLAN)
-```
-
-## Layer Overview
-
-Astars は、概念的に次の layer に分ける。
-
-```mermaid
-flowchart TB
-    PyConsumer["Python consumer\n(ML / research)"]
-    NodeConsumer["Node consumer\n(coding agent framework)"]
-
-    subgraph PyBinding["bindings/python (crate astars-py)"]
-        PyFacade["_astars pymodule\nPyLang / PyParseResult"]
-    end
-
-    subgraph NodeBinding["bindings/node (crate astars-node)"]
-        NodeFacade["@astars/native napi module\nJsLang / JsParseResult"]
-    end
-
-    subgraph Core["crates/astars-core"]
-        PublicAPI["public facade\nLang / ParseResult / parse_str()"]
-        subgraph ParseMod["parse (internal module)"]
-            Adapter["ParseAdapter"]
-            Raw["RawTree"]
-        end
-    end
+`replace`はtarget nodeのspanをtext spliceし、tree-sitterのincremental parseを用いて新しい`SyntaxTree`を返す。`diff_with`はline diffから複数text editを作り、二sourceのchanged rangeを得る。どちらもnode correspondenceや永続lineageを生成しない。
 
-    TreeSitter["tree-sitter crate (external)"]
+### Python Binding
 
-    PyConsumer --> PyFacade
-    NodeConsumer --> NodeFacade
-    PyFacade -- convert + call --> PublicAPI
-    NodeFacade -- convert + call --> PublicAPI
-    PublicAPI --> Adapter
-    Adapter --> Raw
-    Raw --> TreeSitter
-```
+`bindings/python`はpyo3 wrapperとして次を公開する。
 
-依存方向は、consumer(Python/Node)から binding crate に向かい、binding crate は `astars-core` の public facade だけに依存する。`astars-core` 自身は pyo3 にも napi-rs にも依存しない(binding-agnostic)。tree-sitter への依存は `astars-core` 内の `parse`(internal module)に閉じ込められ、`astars-core` の public API にも、binding crate にも漏れない。
+- `PyLang`, `PyParseResult`, `PySyntaxTree`
+- `PyNodeInfo`, `PyDiagnostic`, `PyEditResult`
+- `parse_str`, `parse_bytes`, `parse_file`
 
-## Dependency Direction
+`PySyntaxTree` / `PyEditResult`はcore valueをprivate fieldに保持する。tree dumpのbulk exportを持つが、model semanticsはcore側に委譲する。
 
-原則:
+### Node Binding
 
-- Python / Node consumer は、それぞれの binding crate(`astars-py` / `astars-node`)にのみ依存する
-- binding crate は `astars-core` の public facade(`Lang`, `ParseResult`, `parse_str`)にのみ依存する
-- binding crate は、FFI 境界を越えるための mirror 型(`PyLang`/`JsLang` など)と変換ロジック(`From` 実装)を自分で持つ
-- `astars-core` は pyo3 / napi-rs のどちらにも依存しない
-- `astars-core` の public facade は `parse`(internal module)の実装詳細(tree-sitter 型)に依存させない
-- `astars-core` は downstream package(`astars-metrics` 等、将来)に依存しない
+`bindings/node`はnapi-rs wrapperとして次を公開する。
 
-依存方向を逆流させないことと、tree-sitter / pyo3 / napi-rs という3種の外部依存をそれぞれの層に閉じ込めることが、Astars を軽量 engine として保つための重要な制約である。
+- `JsLang`, `JsSyntaxTree`
+- `JsNodeInfo`, `JsDiagnostic`, `JsEditResult`
+- `parseStr`, `parseBytes`, `parseFile`
 
-## Module Responsibilities
+Node側には`JsParseResult`がない。napi-rsの表現制約から、`lang`を`JsSyntaxTree`のgetterとして持ち、parse関数はtreeを直接返す。この外形差はbinding concernであり、coreのProgram Model差ではない。
 
-### `astars-core`(public facade, `src/lib.rs`)
+### Frozen Python Prototype
 
-public API の入口を提供する。
+`prototype-python/`はactive implementationではなく、旧研究実装の設計判断とedge caseを参照するために保持する。新機能を二重実装する場所にはしない。
 
-責務:
+## Target / Current Gap
 
-- `Lang`(対象言語の列挙)を公開する
-- `ParseResult`(正規化された parse 結果)を公開する
-- `parse_str(source, lang) -> ParseResult` を公開する
-- `parse`(internal module)の実装詳細を隠す
+| Target capability | Current implementation | Gap |
+|---|---|---|
+| Program State snapshot | `ParseResult` + `SyntaxTree` | state identity、revision、明示的validityがない |
+| structure layers | tree-sitter CST由来の単一`SyntaxTree` | normalized structure / editable graph / layer mappingがない |
+| source revision | `Vec<u8>`を`SyntaxTree`が保持 | encoding metadata、original representation、revision identityがない |
+| structure-addressed operation | `SyntaxTree::replace(NodeId, text)` | operation value、precondition、失敗結果、serializationがない |
+| multi-edit application | `diff_with`内部でtext hunksを適用 | first-class operation sequence / compositionではない |
+| incomplete state | parser recovery treeとdiagnostics | edit-derived absenceとparser recoveryを区別しない |
+| provenance | old/new changed rangesと`unchanged` | StateId / OperationId / lineage DAG / node relationがない |
+| structural correspondence | byte-range非重複によるunchanged判定 | move / rename / split / mergeを表現しない |
+| source projection | text splice後にre-parse | source-unbacked graphからのprojectionがない |
+| language abstraction | `Lang::Python`とprivate adapter | adapter contractとsecond language検証がない |
+| binding parity | core query / editのthin wrapper | operation / provenance APIが未設計 |
 
-### `astars-core::parse`(internal module)
+## Evolution by Roadmap Stage
 
-parser 固有の処理を閉じ込める。crate root で `pub` にしていないため、crate 外からは `ParseAdapter` / `RawTree` のどちらにも到達できない。
+### Stage 2: Structure-Addressed Source Edit
 
-責務:
+現行構成を壊さず、次を明示的なvalueへ寄せる。
 
-- `ParseAdapter`: tree-sitter の `Parser` / `Language` を直接扱う唯一の場所
-- `RawTree`: `tree_sitter::Tree` と source bytes を保持する internal struct
-- tree-sitter 型を `astars-core` の public facade に漏らさない
+- source revision
+- operation input / target / result
+- validation error
+- edit-derived state transition
+- current `replace` semanticsのtestable contract
 
-### `bindings/python`(crate `astars-py`)
+この段階ではtext splice + re-parseを維持してよい。
 
-Python 向け FFI 層。pyo3 に依存してよい唯一の crate。
+### Stage 3: First-Class Structural Edit Operations
 
-責務:
+- operation serialization / replay
+- structural targetとpayloadの明示
+- operation preconditionとvalidation result
+- sequential operation sequence
+- source patchとstructural intentの区別
 
-- `PyLang` / `PyParseResult`: `astars_core::Lang` / `ParseResult` の mirror 型
-- `From` による双方向変換(`PyLang <-> Lang`, `ParseResult -> PyParseResult`)
-- `#[pymodule] fn _astars(...)`: Python から `import _astars` で使う entry point
-- `astars-core` を呼び出す(`astars_core::parse_str` の呼び出し)
+Stage 2のvariant生成をoperation objectの列として記録し、同じoriginへ再適用できることを検証する。永続lineage graphはまだ導入しない。
 
-### `bindings/node`(crate `astars-node`)
+### Stage 4: Variant and Lineage Model
 
-Node 向け FFI 層。napi-rs に依存してよい唯一の crate。
+- StateId / OperationId
+- lineage DAG
+- known node relation
+- deleted element record
+- sequential editとoriginからのindependent branch
+- independent trees間のinferred correspondenceとの統合境界
 
-責務:
+複数stateを管理するworkspace境界をこの段階で確定する。
 
-- `JsLang` / `JsParseResult`: `astars_core::Lang` / `ParseResult` の mirror 型(`JsParseResult` は `#[napi(object)]` の plain object)
-- `From` による双方向変換
-- `#[napi] fn parse_str(...)`: Node から `parseStr`(napi-rs の camelCase 規約)として呼ばれる entry point
-- `astars-core` を呼び出す
+### Stage 5: Graph-Native Transformation and Incomplete States
 
-### `prototype-python/`(frozen reference)
+- source-unbacked / inactive / placeholder elementを持つeditable graph
+- incomplete graph operation
+- graphからsourceへのprojection
+- parser tree / normalized structure / editable graph間mapping
 
-旧 Python 実装。active development の対象ではないが、source mapping の挙動・edge case・tie-breaker 方針などの設計判断は、Rust 実装の参照として使う。詳細は [`prototype-python/README.md`](../../prototype-python/README.md)。
+Stage 5の型をStage 2へ前倒しで固定せず、Stage 2で必要なidentityとoperation contractが後から拡張可能かを検証する。
 
-## Public / Extension / Internal Boundary
+## Public / Internal Boundary
 
-### Public(`astars-core`)
+### Stable候補
 
-downstream(binding crate)が依存してよいもの:
+- parser-neutralなstate / structure query
+- source coordinate value
+- explicit operation value / result
+- diagnostics
+- provenance query value
 
-- `Lang`
-- `ParseResult`
-- `parse_str(source, lang) -> ParseResult`
+### Internalに保つもの
 
-### Public(各 binding crate)
-
-consumer(Python / Node)が依存してよいもの:
-
-- Python: `_astars.PyLang`, `_astars.PyParseResult`, `_astars.parse_str`
-- Node: `JsLang`, `JsParseResult`, `parseStr`(`@astars/native` から)
-
-### Internal
-
-安定 API として扱わないもの:
-
-- `astars-core::parse::ParseAdapter` / `RawTree`(crate 外から到達不可)
-- `tree_sitter::Parser` / `Tree` / `Node` などの tree-sitter 型
-- pyo3 / napi-rs の型(binding crate の実装詳細)
-
-## v0 Scope(Rust core)
-
-旧 Python 実装の `0.1.0` 相当(`astars.parse_str` / `SourceUnit` / `SourceSpan` / `Diagnostic` / node interface / `walk` / `find` / `node_at` / `span_of` / `source_of`)に、Rust core として到達することを `v0` のゴールとする。
-
-### 現状
-
-- [x] `parse_str(source, lang) -> ParseResult { lang, tree: SyntaxTree }` — toolchain(tree-sitter + pyo3 + napi-rs)が繋がることの証明が目的だった最初の spike から、実際に動く `SyntaxTree` / `SyntaxNode` 構造に進んだ
-- [x] `astars-core` が binding-agnostic であることをコードレベルで保証(`mod parse;` が非 `pub`。`SyntaxTree` は `tree_sitter::Tree` を private field に持つが、公開 API には一切出さない)
-- [x] AST-like node 構造(上の「astars-core」クラス図、`NodeId` / `ByteSpan` / `SyntaxNode` / `SyntaxTree`)。v0 は tree-sitter の生 CST を 1:1 で使い、rule による正規化はまだ無い
-- [x] `SyntaxGraph` 相当は不要と判断した(v0 は 1 raw node = 1 `SyntaxNode` なので span を node に直接持たせられる。rule 正規化を足すときに再検討する。詳細は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md))
-- [x] query API(`walk`, `find(kind)`, `node_at(byte_offset)`, `span_of`, `source_of`)
-- [x] `SyntaxTree` を Python / Node 両 binding に公開し、実際に動作確認済み(上の「bindings/python」/「bindings/node」クラス図。`examples/python/basic_parse.py` / `examples/node/basic-parse.js` で同一結果を再現)
-
-### 編集 primitive・診断・encoding 対応
-
-AWS Kiro の AST 構造化編集の公開を受け、編集 primitive を他の v0 残作業より先に進めた(経緯は `ACTION_ITEMS.ja.md` / git log 参照)。
-
-- [x] **編集 primitive(v1)**: `SyntaxTree::replace` + `EditResult` + `unchanged_in`(設計は [EDIT_MODEL.ja.md](EDIT_MODEL.ja.md) の「編集 primitive(v1)の設計」)。Python / Node 両方に公開済み
-- [x] `parse_bytes` / `parse_file` の追加(`ParseAdapter::parse` が `&[u8]` を受ける形に変更し、`parse_str` はその薄いラッパーにした。`parse_file` は `AstarsError::Io` を返す)
-- [x] `SyntaxTree::source_of` の Unicode 境界対応(`&str` + `.expect()` で panic する実装から、`String::from_utf8_lossy` で U+FFFD 置換する実装に変更。byte offset 自体は常に正しいまま)
-- [x] Diagnostics(`astars_core::Diagnostic` / `Severity` を新設し、`SyntaxTree::diagnostics()` で tree-sitter の `ERROR` / `MISSING` node を公開)
-- [x] `parse_file` の非 UTF-8 encoding サポート(`encoding_rs` を追加して実装。`parse_file(path, lang, encoding)` が WHATWG Encoding Standard のラベルで decode してから parse する。不明なラベルは `AstarsError::UnsupportedEncoding` を返す)
-- [x] `SourceSpan` の point(line/column)情報(`Point { line, column }`(0-based、byte column)と `SyntaxTree::point_at(byte_offset) -> Point` を追加)
-
-Python / Node 両 binding にも、`parse_bytes` / `parse_file`(encoding 引数込み)/ `diagnostics()` / `point_at` を公開済み(`PyDiagnostic`/`JsDiagnostic` を追加)。
-
-### Non-Goals(v0 では扱わない)
-
-- ~~edit primitive の本格実装~~ → v1(`replace` + `unchanged_in` のみ)を前倒しすることにした。insert/delete 専用メソッド、Piece Table 化、系譜追跡(操作9)、名前/kind アドレス指定(操作10)は引き続き Non-Goal(詳細は `EDIT_MODEL.ja.md` の「v1 のスコープ外」)
-- CST / `RawSyntaxNode` の stable public API 化
-- semantic analysis
-- Python 以外の対象言語
+- tree-sitterの`Parser`, `Tree`, `Node`, `InputEdit`
+- arena layoutやnode storage方式
+- incremental parseの最適化
+- diff / matching algorithmの具体実装
+- pyo3 / napi-rsの型
+- graph projectionの中間表現
+
+型がpublicであることと、永続serialization formatがstableであることは区別する。研究datasetの再現に必要なformatは、Stage 3以降にversioningを含めて決める。
+
+## Architectural Invariants
+
+- core public valueからparser libraryの型へ到達できない
+- core semanticsはbindingごとに再実装しない
+- operation適用はinput stateを破壊せず、新しいstateを生成する
+- incomplete stateも通常のstate pipelineを通る
+- known operation lineageとinferred diffを同一の確実性として扱わない
+- node identityのscopeをbinding都合で拡張しない
+- source coordinateは常にどのsource revisionに対するものか解釈できる
+- analysis / evaluation policyをcore dependencyへ逆流させない
 
 ## Open Questions
 
-- `SyntaxGraph` を `astars-core` 内の別 internal module にするか、`parse` module に含めるか(rule 正規化を足すタイミングで再検討)
-- Python / Node 両方で同じ node id 安定性(stable ID)をどう保証するか
-- 編集 primitive の v2(Piece Table 化、insert/delete、系譜追跡、名前/kind アドレス指定)をいつ着手するか
+- Program Stateを`ParseResult`の発展形にするか、新しい型として導入するか
+- source layerを`syntax`から分離する最初の単位は何か
+- first-class Operationをenum、trait、data schemaのどれから始めるか
+- multi-state Provenance Graphを`astars-core`が所有するか、別crate / workspace layerへ置くか
+- normalized structureをStage 3以前に導入する必要があるか
+- Python / Node bindingでoperation serialization形式を共有するか
+- public API stabilityと研究用experimental APIをどう分けるか
+
+これらの決定は実装着手時にADRへ記録し、model文書には決定後の規約だけを反映する。

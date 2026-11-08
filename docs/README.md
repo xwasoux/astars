@@ -10,19 +10,22 @@
 
 - `docs/` 直下: どのカテゴリにも固定しない、または常に最初に読む文書
   - `README.md`: 本書。ドキュメント構成の索引
-  - `ACTION_ITEMS.ja.md`: 現在地、直近の作業順、完了条件、強みの実現状況
+  - `ACTION_ITEMS.ja.md`: 現在地、直近の作業順、完了条件、capability status
 - `strategy/`: なぜ作るか、何を目指すか
   - `STRATEGY.ja.md`: 上位方針、独自性、ecosystem、trade-off
   - `USE_CASES.ja.md`: research / practical use cases の詳細
   - `ROADMAP.ja.md`: 導入ストーリー
 - `design/`: どう作るか
-  - `ARCHITECTURE.ja.md`: module 構成、依存方向、クラス図(Mermaid)
-  - `EDIT_MODEL.ja.md`: 編集・diff まわりのシナリオ、操作リスト、設計根拠
-  - `NODE_RESOLUTION.ja.md`: `node_at`/`NodeId` の無効値の扱いに関する設計判断
-  - `SOURCE_MODEL.ja.md`: 文字列の lossy decode、`Point.column` の座標系、diagnostics の取得元に関する設計判断
-  - `img/`、`repo-structure.drawio.svg`: 上記の文書で参照する図
+  - `README.md`: design 文書の分割方針、読む順序、記載先の索引
+  - `PROGRAM_MODEL.ja.md`: Program State、structure layer、node identity、incomplete state
+  - `SOURCE_MODEL.ja.md`: source representation、座標、structureとのmapping、projection
+  - `OPERATION_MODEL.ja.md`: structural operationの意味論、適用、replay、composition
+  - `PROVENANCE_MODEL.ja.md`: state / operation / nodeのlineage
+  - `ARCHITECTURE.ja.md`: 各modelのlayer / crate / bindingへの配置とcurrent / target gap
+  - `decisions/`: 個別の設計判断と理由を残すADR
 - `release/`: いつ・どの順で出すか
-  - `NEXT_RELEASE_PLAN.ja.md`: version ごとの release scope
-  - `RELEASE_STRATEGY.ja.md`: branch strategy、versioning、publish 方針
+  - `RELEASE_POLICY.ja.md`: release unit、versioning、compatibility、tagの規約
+  - `RELEASE_PROCESS.ja.md`: build、検証、tag、publishの反復手順
+  - `NEXT_RELEASE.ja.md`: 次の1releaseのscope、non-goal、evidence gate
 
-戦略判断を知りたい人は `strategy/`、実装に入る人は `design/`、次に何をやるかを知りたい人は `ACTION_ITEMS.ja.md` / `release/NEXT_RELEASE_PLAN.ja.md` を読む、という状態を目指す。
+戦略判断を知りたい人は`strategy/`、実装に入る人は`design/`、次に何をやるかを知りたい人は`ACTION_ITEMS.ja.md` / `release/NEXT_RELEASE.ja.md`を読む、という状態を目指す。

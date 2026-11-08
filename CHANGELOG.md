@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.2.0 - Unreleased
+## Unreleased
+
+### Added
+
+- Field-based syntax navigation through `child_by_field_name` in Rust,
+  Python, and Node.js.
+- Independent-source diff approximation through `diff_with` and
+  `EditResult::unchanged` in all three public surfaces.
+
+### Fixed
+
+- Changed-range checks now keep old- and new-source coordinate systems
+  separate when determining whether nodes are unchanged.
+
+## 0.2.0 - 2026-10-23
+
+Tagged on 2026-10-23. Registry publication was completed on 2026-11-01
+(PyPI on 2026-10-31, npm on 2026-11-01).
 
 Astars 0.2.0 is the first release of the Rust core (`crates/astars-core`) and
 its Python (`bindings/python`, module `_astars`) and Node.js
@@ -19,10 +36,9 @@ its Python (`bindings/python`, module `_astars`) and Node.js
 
 ### Known Limitations
 
-- Lineage tracking across edits and name/kind-based node addressing
-  (`EDIT_MODEL.ja.md` operations 9 and 10) are not included.
-- Structural diff between independently parsed trees (operation 13) is not
-  included.
+- Lineage tracking across edits and composite structure selectors are not
+  included; see `PROVENANCE_MODEL.ja.md` and `OPERATION_MODEL.ja.md`.
+- Independent-source diff and structural node matching are not included.
 - No downstream `astars-*` package exists yet.
 
 ## 0.1.0 - 2026-06-01

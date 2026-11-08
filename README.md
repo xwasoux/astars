@@ -25,24 +25,24 @@ source-aware な edit primitive を提供する。Astars は、それ単体で�
 
 - **Source-faithful, editable program structure.** Every node maps back to its
   exact source span, and the same engine that queries the tree can edit it -
-  replace a node's span and immediately ask which other nodes survived
-  unchanged, so editing and re-analysis are one loop instead of two
-  disconnected tools.<br>
+  replace a node's span and immediately ask which original node spans do not
+  overlap the reported changed range, so editing and re-analysis are one loop
+  instead of two disconnected tools.<br>
   **Source-faithful で編集可能なプログラム構造。** すべての node が元の
   source span に正確に対応づいており、木を query するのと同じ engine でその
-  まま編集もできる — node の source span を replace して、他のどの node が
-  影響を受けずに残ったかをすぐ確認できるので、編集と再解析が別々のツールで
-  はなく同じ loop になる。
+  まま編集もできる — node の source span を replace して、元のどの node span
+  が報告された変更範囲と重ならないかをすぐ確認できるので、編集と再解析が
+  別々のツールではなく同じ loop になる。
 
 - **One Rust core, no per-language reimplementation.** Python and Node.js
-  bindings share a single `astars-core` implementation with full API parity,
-  verified end-to-end in both runtimes - the same engine serves ML/research
+  bindings share a single `astars-core` implementation with semantic parity for
+  the shared capabilities, verified end-to-end in both runtimes - the same engine serves ML/research
   workflows (Python) and coding-agent tooling (Node) without duplicating
   logic.<br>
   **単一の Rust core、言語ごとの再実装なし。** Python/Node binding は単一の
-  `astars-core` 実装を共有し、API 全体でパリティが取れている(両ランタイム
-  で実機確認済み) — ML/研究向け(Python)と coding agent ツール向け(Node)
-  を、ロジックを重複させずに同じ engine で支える。
+  `astars-core` 実装を共有し、共通 capability の意味論が揃っている(両ランタイム
+  で実機確認済み) — runtime ごとのAPI形状は異なるが、ML/研究向け(Python)と
+  coding agent ツール向け(Node)を、ロジックを重複させずに同じ engine で支える。
 
 - **Built for structured, LLM-friendly edits - not diffs.** Diff- and
   line-number-based edit formats break down on large files when a model
@@ -63,15 +63,16 @@ source-aware な edit primitive を提供する。Astars は、それ単体で�
   review・pruning・LLM 評価のような downstream package が土台にできる、
   parse/query/edit/diagnose の primitive を提供する。
 
-These are the engine's design goals, not all fully proven yet - the
-name/kind-based node addressing that the third point leans on, and any real
-downstream package, are still open. See
-[`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md)'s 「強みの実現状況」
+These are the engine's design goals, not all fully proven yet. Field-based
+navigation is available in the current repository, while composite structural
+selectors, stable cross-state node identity, and real downstream packages are
+still open. See
+[`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md)'s "Capability Status"
 section for the exact, current status of each.<br>
-これらは engine の設計目標であり、すべてが証明済みというわけではない —
-3点目が前提とする名前/kind ベースの node アドレス指定も、実際の
-downstream package も、まだ無い。各項目の正確な現状は
-[`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) の「強みの実現状況」
+これらは engine の設計目標であり、すべてが証明済みというわけではない。
+field-based navigation は現在のrepositoryにある一方、複合structural selector、
+stateを跨ぐ安定node identity、実際のdownstream packageはまだ無い。各項目の正確な現状は
+[`docs/ACTION_ITEMS.ja.md`](docs/ACTION_ITEMS.ja.md) の「Capability Status」
 節を参照。
 
 ## Project Status / プロジェクトの状態
@@ -119,8 +120,8 @@ active development の対象ではない。そちらを使いたい場合は
 を参照。公開済みパッケージではなくソースからビルドしたい場合は、下の
 [Build From Source](#build-from-source--ソースからビルドする) を参照。
 
-The current v0 scope (Rust core):
-現在の v0 scope(Rust core):
+The published v0.2.0 scope (Rust core):
+公開済み v0.2.0 の scope(Rust core):
 
 - parse Python source from a string, raw bytes, or a file (with encoding support)<br>
   Python source を文字列・raw bytes・ファイル(encoding 指定込み)から parse する
@@ -135,9 +136,9 @@ The current v0 scope (Rust core):
 - map nodes to byte spans, source text, and 0-based line/column positions<br>
   node を byte span・source text・0-based の line/column 位置に対応づける
 - a minimal edit primitive: replace a node's source span, and ask whether another
-  node survived that edit unchanged<br>
-  最小限の edit primitive: node の source span を replace し、別の node がその
-  編集の影響を受けずに残ったかを問い合わせる
+  original node span overlaps the reported changed range<br>
+  最小限の edit primitive: node の source span を replace し、別の元node spanが
+  報告された変更範囲と重なるかを問い合わせる
 - parser-recovery diagnostics (syntax errors)<br>
   parser recovery による diagnostics(構文エラー)
 
@@ -145,9 +146,9 @@ The following are outside the v0 scope:
 以下は v0 scope の対象外:
 
 - insert/delete-specific edit methods, a Piece Table, edit lineage tracking, and
-  name/kind-based node addressing (the planned v2 of the edit primitive)<br>
-  insert/delete 専用の編集メソッド、Piece Table、編集の系譜追跡、名前/kind
-  ベースの node アドレス指定(edit primitive の v2 として計画中)
+  composite structural selectors<br>
+  insert/delete 専用の編集メソッド、Piece Table、編集の系譜追跡、複合的な
+  structural selector
 - a selector DSL<br>
   selector DSL
 - a stable CST / raw-node public API<br>
@@ -158,6 +159,15 @@ The following are outside the v0 scope:
   Python 以外の対象言語
 - downstream packages themselves (`astars-metrics`, `astars-code-review`, etc.)<br>
   downstream package 自体(`astars-metrics`、`astars-code-review` など)
+
+The repository's unreleased HEAD additionally contains field navigation via
+`child_by_field_name` and an independent-source changed-range approximation via
+`diff_with`. These are candidates for the next release; they do not provide
+cross-state node identity or structural matching.
+
+repositoryの未release HEADには、`child_by_field_name`によるfield navigationと、
+`diff_with`による独立source間のchanged-range近似も含まれる。これらは次回release
+候補であり、stateを跨ぐnode identityやstructural matchingは提供しない。
 
 ## Build From Source / ソースからビルドする
 
@@ -237,12 +247,14 @@ console.log(tree.pointAt(0));   // [0, 0]
 ## Public API
 
 The core engine (`astars-core`) exposes `Lang`, `ParseResult`, `SyntaxTree` (+
-`NodeId`, `ByteSpan`, `Point`, `EditResult`, `Diagnostic`, `Severity`), and
+`NodeId`, `ByteSpan`, `Point`, `EditResult`, `Diagnostic`, `Severity`,
+`AstarsError`), and
 `parse_str` / `parse_bytes` / `parse_file`. Each binding mirrors this surface in
 its own idiom:
 
 core engine(`astars-core`)は `Lang`、`ParseResult`、`SyntaxTree`(+ `NodeId`、
-`ByteSpan`、`Point`、`EditResult`、`Diagnostic`、`Severity`)、`parse_str` /
+`ByteSpan`、`Point`、`EditResult`、`Diagnostic`、`Severity`、`AstarsError`)、
+`parse_str` /
 `parse_bytes` / `parse_file` を公開している。各 binding はこの surface を
 それぞれの言語の流儀でミラーする:
 
@@ -251,14 +263,14 @@ core engine(`astars-core`)は `Lang`、`ParseResult`、`SyntaxTree`(+ `NodeId`�
 - Node (`@astars/native`): `JsLang`, `JsSyntaxTree`, `JsNodeInfo`, `JsEditResult`,
   `JsDiagnostic`, `parseStr` / `parseBytes` / `parseFile`
 
-For the full method-level surface of each type, see the Mermaid class diagrams in
-[`docs/design/ARCHITECTURE.ja.md`](docs/design/ARCHITECTURE.ja.md)
-rather than this README, so there is a single place that stays in sync with the
-code.
+For the architectural boundary and a compact view of the current types, see
+[`docs/design/ARCHITECTURE.ja.md`](docs/design/ARCHITECTURE.ja.md). The binding
+source and generated package documentation remain authoritative for the exact
+method-level API.
 
-各型のメソッド単位の詳細は、この README ではなく
-[`docs/design/ARCHITECTURE.ja.md`](docs/design/ARCHITECTURE.ja.md)
-の Mermaid クラス図を参照する。コードと同期する場所を一箇所にするためである。
+architecture上の境界と現行型の要約は
+[`docs/design/ARCHITECTURE.ja.md`](docs/design/ARCHITECTURE.ja.md)を参照する。
+正確なメソッド単位のAPIはbinding sourceと生成されたpackage documentationを正とする。
 
 ## Design Boundary
 
@@ -385,8 +397,11 @@ The current strategy and architecture notes are maintained in Japanese:
 
 - [Current Action Items](docs/ACTION_ITEMS.ja.md)
 - [Strategy](docs/strategy/STRATEGY.ja.md)
+- [Design Documents](docs/design/README.md)
 - [Architecture](docs/design/ARCHITECTURE.ja.md)
-- [Edit Model](docs/design/EDIT_MODEL.ja.md)
-- [Node Resolution](docs/design/NODE_RESOLUTION.ja.md)
-- [Release Strategy](docs/release/RELEASE_STRATEGY.ja.md)
-- [Next Release Plan](docs/release/NEXT_RELEASE_PLAN.ja.md)
+- [Program Model](docs/design/PROGRAM_MODEL.ja.md)
+- [Operation Model](docs/design/OPERATION_MODEL.ja.md)
+- [Provenance Model](docs/design/PROVENANCE_MODEL.ja.md)
+- [Release Policy](docs/release/RELEASE_POLICY.ja.md)
+- [Release Process](docs/release/RELEASE_PROCESS.ja.md)
+- [Next Release](docs/release/NEXT_RELEASE.ja.md)

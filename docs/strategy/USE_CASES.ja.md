@@ -1,183 +1,216 @@
 # Astars ユースケース
 
-ステータス: ユースケース draft
+ステータス: 戦略再構成中
 
 関連戦略: [STRATEGY.ja.md](STRATEGY.ja.md)
 
-この文書は、Astars の価値を research use cases と practical engineering use cases に分けて整理する。
+この文書は、Astars の設計と実装を検証する具体的な workflow を定義する。可能性のある用途を並列に列挙するのではなく、primary use case、secondary validation、将来候補を区別する。
 
-Astars の戦略的な価値は、ユースケースごとに見るとより明確になる。ここでは大きく Research Use Cases と Practical Engineering Use Cases に分ける。
+## 優先順位
 
-## Research Use Cases
+1. **Primary**: 研究用の program variant 生成・追跡・評価
+2. **Secondary validation**: LLM coding agent による構造化編集
+3. **Future candidates**: repository mining、review、migration、metrics、visualization 等
 
-研究用途では、柔軟な program structure、正確な source mapping、そして experiment-specific な analysis logic を engine の外で定義できる自由度が重要になる。
+Primary use case で必要性が確認できない primitive を、「汎用 engine ならいつか使う」という理由だけで追加しない。Secondary use case は、primary で得た primitive が別領域でも再利用できるかを検証する。
 
-### Research Pruning / Program Reduction
+## Primary Use Case: Program Variant Research
 
-Downstream package: `astars-pruning`
+### 目的
 
-研究 workflow では、tree node と source text の対応を保ったまま、program の一部を削除、置換、最小化したいことがある。
+研究者が program structure を基準にコードを編集し、複数の variant を生成し、各 variant の source・構造・編集系列・評価結果を対応づけられるようにする。
 
-Astars がある場合、pruning package は次を行える。
+Astars は研究仮説や評価関数を所有しない。研究者が独自の pruning strategy、mutation strategy、distance metric、model evaluation を実装できる共通 substrate を提供する。
 
-- pruning strategy を core の外で選べる
-- generic source-aware edit primitive を使える
-- 各 edit を選択された node に追跡できる
-- 同じ source mapping model を使って reduced program を比較できる
+### Scenario A: Sequential Pruning
 
-Astars は pruning policy を所有しない。node-to-source edit substrate を提供する。
+一つ前の variant に対して削除を繰り返し、累積的な編集系列を生成する。
 
-### LLM / Code Model Evaluation
+```mermaid
+graph TD;
+  A --"Prune(node a)"--> B
+  B --"Prune(node b)"--> C
+  C --"Prune(node c)"--> D
 
-Downstream package: `astars-llm-eval`
+  A["Original"]
+  B[Variant 1]
+  C[Variant 2]
+  D[Variant 3]
+```
 
-evaluation dataset では、structural slicing、prompt construction、answer checking、source-region selection などが必要になることがある。
+必要な capability:
 
-Astars がある場合、evaluation package は次を行える。
+- node を安定した順序で traverse する
+- node を source と対応づける
+- delete operation を適用・記録する
+- variant の parent を保持する
+- 各 state の diagnostics / validity を観測する
+- 削除された node の origin を追跡する
 
-- function、class、block、expression を一貫して抽出できる
-- dataset provenance のために source span を保持できる
-- parser glue を再実装せずに structural variant を作れる
-- generated code を source-mapped structure と比較できる
+### Scenario B: Independent Subtree Variants
 
-Astars は model score や benchmark を定義しない。それらの workflow に信頼できる program structure を提供する。
+同じ origin から異なる subtree を削除し、互いに独立した variant を生成する。
 
-### Repository Mining / Software Engineering Research
+```mermaid
+graph TD;
+  A --"Prune(subtree A)"--> B
+  A --"Prune(subtree B)"--> C
+  A --"Prune(subtree C)"--> D
 
-Downstream package: research scripts または `astars-research-*` packages
+  A["Original"]
+  B[Variant A]
+  C[Variant B]
+  D[Variant C]
+```
 
-ソフトウェア工学研究では、多数の repository を処理し、比較可能な program structure を抽出し、source file への link を保持したいことが多い。
+必要な capability:
 
-Astars がある場合、research workflow は次を行える。
+- origin state を再利用する
+- cumulative edit と independent edit を区別する
+- subtree を一つの structural target として扱う
+- variant 間で node / operation provenance を比較する
 
-- 共通の engine surface を通じて repository を parse できる
-- function、class、import、statement を一貫して抽出できる
-- 再現性のために source span を記録できる
-- experiment ごとに parser glue を作り直さなくてよい
+### Scenario C: Incomplete Intermediate State
 
-Astars は research question を定義しない。structural data collection を信頼しやすくする。
+node や token 相当の要素を削除した結果、source が構文不完全になる場合でも、その state を捨てずに保持する。
 
-### Language Support Experiments
+例:
 
-Downstream または extension package: language adapter package / experimental language support
+```c
+sum =
+```
 
-言語を追加する際の中心課題は、各 downstream package が新しい parser API を学ぶことではなく、その言語を Astars の engine concepts にどう対応させるかである。
+この状態について、単に「parse error」とするだけでなく、元の assignment の right side を削除した結果であることを説明できる状態を目指す。
 
-Astars がある場合、language support は次を行える。
+必要な capability:
 
-- parser-specific behavior を adapter に閉じ込められる
-- source mapping と query primitive を再利用できる
-- core engine shape が Python 以外でも成立するか検証できる
-- downstream package が追加言語を段階的に採用できる
+- parser diagnostics と edit provenance を分離する
+- 欠落した要素と元 node の関係を保持する
+- incomplete state を variant graph に含める
+- source へ投影できる範囲と、構造上のみ存在する情報を区別する
 
-Astars は、reference path が安定する前に広い language coverage を約束しない。代わりに、language expansion のための明確な道筋を提供する。
+### Scenario D: Edit Dataset Generation
 
-## Practical Engineering Use Cases
+構造操作から編集コード群を生成し、code similarity、edit distance、LLM / code model evaluation の dataset として利用する。
 
-実務では、Astars は社内の code understanding、review、migration、governance、LLM-assisted development tool のための共通 engine として使える。
+Astars が提供するもの:
 
-### Metrics / Structural Statistics
+- 再現可能な operation sequence
+- before / after program state
+- source span と structural target
+- lineage / provenance
+- diagnostics / validity
 
-Downstream package: `astars-metrics`
+downstream が定義するもの:
 
-Astars がない場合、metrics package は source の parse、node normalization、tree traversal、finding と source location の対応づけを自前で決める必要がある。
+- operation の sampling policy
+- label、distance、score
+- training / evaluation split
+- model と学習方法
 
-Astars がある場合、metrics package は metric definition に集中できる。
+### Primary Use Case の end-to-end 完了条件
 
-- 安定した node interface を通じて function、class、branch、expression を数えられる
-- metric location を source span として report できる
-- parser-specific node API への直接依存を避けられる
-- 他の `astars-*` package と同じ parse/query workflow を再利用できる
+一つの Python source から、少なくとも次を自動実行できること。
 
-Astars は metric を定義しない。metric を計算するための構造を提供する。
+1. parse して structural target を列挙する
+2. sequential variant と independent subtree variant を生成する
+3. valid / incomplete を問わず全 state を保持する
+4. 各 variant の origin、parent operation、対象 node を問い合わせる
+5. source、structure、operation log を再現可能な形で export する
+6. downstream の任意評価関数を各 variant に適用する
 
-### Code Review / Quality Signals
+この workflow が core private API や parser 固有 object へ依存せず成立することを、最終像に向けた主要な実証とする。
 
-Downstream package: `astars-code-review`
+## Secondary Validation: LLM Structural Editing
 
-review-oriented tool では、source region を特定し、finding を説明し、正確な line や span に comment を紐づける必要がある。
+### 目的
 
-Astars がある場合、review package は次を行える。
+LLM にファイル全体の転記や曖昧な行番号指定だけを要求せず、program structure を使って編集対象と操作を表現させる。
 
-- node から source span に finding を戻せる
-- pull request の structural change を要約できる
-- parser setup を自前で持たずに review comment を作れる
-- structural query と repository-specific policy を組み合わせられる
-- review decision を engine の外に保てる
+LLM agent 自体、prompt strategy、model selection は Astars の責務ではない。Astars は agent が利用できる addressing、operation validation、application、post-edit inspection を提供する。
 
-Astars は、ある pattern に review comment を出すべきか判断しない。downstream package が relevant code を特定し説明しやすくする。
+### Scenario E: Structure-Addressed Replacement
 
-### Migration / Refactoring Support
+LLM が「関数 `process` の body を置換する」のように対象を指定し、Astars が node を解決して source edit を適用する。
 
-Downstream package: internal migration tools または `astars-migrate`
+これは現在の stage に最も近い。必要なのは、曖昧な selector の扱い、再 parse、diagnostics、意図しない範囲が変わっていないかの確認である。
 
-開発チームでは、deprecated API の検出、framework usage の更新、semi-automatic code modernization などが必要になることがある。
+### Scenario F: Relative Insertion
 
-Astars がある場合、migration package は次を行える。
+LLM が「`return` の前に `validate(value)` を挿入する」と指定する。
 
-- structural query を通じて古い API call を検出できる
-- replacement を正確な source span に対応づけられる
-- generic transformation primitive で edit plan を作れる
-- migration recipe を engine の外に保てる
+段階的な実装候補:
 
-Astars は migration recipe を所有しない。recipe package が使える source-aware structure と edit を提供する。
+1. target node + insertion text
+2. target node + relative position + insertion text
+3. target node + structural node description
 
-### Architecture / Dependency Rule Checks
+indentation、separator、comment、formatting の責任範囲は各段階で実証してから拡張する。
 
-Downstream package: internal governance tools
+### Scenario G: Operation Plan
 
-大規模 repository では、layer boundary、forbidden import、team-specific dependency rule の検査が必要になることがある。
+LLM が source patch ではなく structural operation の列を返す。
 
-Astars がある場合、governance package は次を行える。
+```json
+{
+  "operation": "insert_before",
+  "target": {
+    "kind": "return_statement",
+    "inside_function": "process"
+  },
+  "content": "validate(value)"
+}
+```
 
-- import、class definition、call site を構造的に inspect できる
-- violation を source span に紐づけて report できる
-- code structure と repository ownership metadata を組み合わせられる
-- organization-specific policy を engine の外に保てる
+Astars は target resolution、ambiguity、operation application、diagnostics、lineage を扱う。操作が意味的に適切かは agent / downstream が判断する。
 
-Astars は architecture policy を定義しない。policy package が評価できる structural fact を提供する。
+### Secondary Validation の成功条件
 
-### LLM Coding Assistant Context
+- モデルが無関係な周辺 source を転記せずに編集できる
+- target が一意でない場合に silent に適用しない
+- operation と適用結果を対応づけて記録できる
+- 構文不完全な結果も失敗として消さず、diagnostics 付き state として返せる
+- 同じ operation model が研究用 variant generation と共有される
 
-Downstream package: internal assistant tooling または `astars-llm-context`
+最後の条件が重要である。LLM 専用 API を別系統で増やすのではなく、Primary use case で確立した structural edit model の再利用性を検証する。
 
-LLM coding workflow では、ファイル全体ではなく、function、class、import、近傍の structural region に基づいて context を取り出したいことがある。
+## Future Validation Candidates
 
-Astars がある場合、assistant package は次を行える。
+次は有望な用途だが、現時点では roadmap を駆動しない。
 
-- mapped program structure に基づいて source を slice できる
-- prompt context の provenance を保持できる
-- 関連する function や class を一貫して取得できる
-- generated code を同じ engine surface で inspect できる
+### Structural Diff / Change Understanding
 
-Astars は assistant そのものではない。assistant tool のための source-faithful structure を提供する。
+二つの独立した program state 間で node を対応づけ、insert/delete/update/move を得る。GumTree 型の matching は variant lineage がない比較に必要となる。
 
-### Test Impact / Change Summaries
+現在の line-based `diff_with` は暫定的な byte-range classification であり、最終的な structural diff ではない。
 
-Downstream package: CI tooling または repository automation
+### Repository Mining / Code Similarity
 
-開発チームでは、pull request でどの function、class、public interface が変わったかを把握したいことがある。
+repository 群から structure、source span、edit history を抽出し、clone detection や similarity research に利用する。
 
-Astars がある場合、automation は次を行える。
+### Migration / Refactoring
 
-- file diff を changed program node に対応づけられる
-- structural change summary を生成できる
-- downstream heuristic を使って関連 test を提案できる
-- summary や finding を正確な source span に紐づけられる
+構造で対象を選び、recipe に従って edit operation を適用する。recipe と migration policy は downstream が所有する。
 
-Astars はどの test を必ず実行するべきか判断しない。CI tool が利用できる structural change data を提供する。
+### Review / Test Impact / Architecture Rule
 
-### Visualization / Exploration
+structural diff や query result を source span へ戻し、review や CI の判断材料にする。review policy や test selection は downstream が所有する。
 
-Downstream package: `astars-visualizer`
+### Visualization
 
-visualization tool は structure、label、source position を必要とするが、parser integration を自前で持つ必要はない。
+program state、source mapping、operation sequence、variant lineage を可視化する。これは graph model の観測・debug 手段として有用だが、Astars core 自体を visualization product にはしない。
 
-Astars がある場合、visualizer は次を行える。
+### Language Expansion
 
-- 安定した node interface を通じて AST-like structure を描画できる
-- 選択された node に対応する source range を highlight できる
-- source、syntax node、AST node の mapping を可視化できる
-- analysis-specific package から独立したまま実装できる
+second language を追加し、operation と provenance model が Python 固有ではないことを検証する。language count を増やすこと自体を目的にしない。
 
-Astars は visualization product にならない。visualization を可能にする data model を提供する。
+## Use Case から外す判断
+
+次のような要望は、Astars core へ直接入れない。
+
+- 特定研究の pruning 順序を標準戦略にする
+- 特定 LLM の prompt / tool protocol を core に固定する
+- code quality score や review rule を組み込む
+- complete compiler frontend / semantic analyzer を作る
+- arbitrary malformed source から編集意図を推定する
+- consumer のない CLI、DSL、service interface を先に増やす

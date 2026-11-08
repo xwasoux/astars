@@ -1,467 +1,279 @@
 # Astars 戦略
 
-ステータス: 継続更新中
+ステータス: 戦略再構成中
 
-現時点では日本語版を primary document とする。英語版は、戦略文書群が安定してからまとめて同期する。
+現時点では日本語版を primary document とする。英語版は、戦略文書群が安定してから同期する。
 
-この文書は、Astars の上位戦略を揃えるための叩き台である。パッケージ構成、クラス名、実装詳細よりも上のレイヤーで、Astars が何を目指し、何を目指さないかを定義する。
-
-詳細なユースケース、実装ロードマップ、ドキュメント構成は次の文書に分ける。
-
-- [USE_CASES.ja.md](USE_CASES.ja.md): research / practical use cases
-- [ROADMAP.ja.md](ROADMAP.ja.md): adoption story と近い実装戦略
-- [README.md](../README.md): ドキュメント構成の索引
+この文書は、Astars をなぜ作るのか、何を中核に置くのか、何を Astars core の外へ置くのかを定義する。個別 API やデータ構造は `design/`、実装と実証の順序は [ROADMAP.ja.md](ROADMAP.ja.md)、具体的な利用シナリオは [USE_CASES.ja.md](USE_CASES.ja.md) で扱う。
 
 ## ビジョン
 
-Astars は、プログラム分析のための構造エンジンである。
+Astars は、プログラムを表層文字列ではなく、構造を持つ状態として扱うための program structure manipulation engine である。
 
-Astars は、分析結果が何を意味するかを判断しない。また、その結果に基づいて何を行うべきかも判断しない。代わりに、外部の分析モジュールがコードを安定して解析・検索・比較・変形できるように、ソース位置と対応づいたプログラム構造を提供する。
+Astars は source code を parse して木を返すだけではない。source、program structure、structural edit、編集前後の対応、variant の派生関係を一つの workflow で扱い、構造に基づく編集と、その結果の分析を可能にする。
 
-短く言えば、Astars は次のためのエンジンである。
+短く言えば、Astars は次を目指す。
 
-> parser 固有の構文木を、分析に使いやすいプログラム構造へ変換し、その構造を自在に切り貼り（query / transform / edit）できるようにする。
+> プログラムを構造として選択・変形し、その変形過程と結果を、source および元構造との関係を失わず観測できるようにする。
 
-Astars の核は、AST を自在に操れることである。分析はその上に成り立つユースケースの一つであり、次の両方を含む。
+最終的に扱う対象は、コンパイル可能な完成済みプログラムだけではない。構造的編集によって生じる、構文不完全・コンパイル不能な途中状態も対象に含める。途中状態を単なる parse failure として捨てず、どの構造にどの操作を適用して生じたかを保持する。
 
-- 既存の AST を解析できること（static analysis、metrics、rule check など）
-- AST を切り貼りした結果どうなるかを解析できること（mutation、pruning、program variant 生成とその評価）
+## 原点と問題意識
 
-ここで言う「解析」は、静的解析に限らない。ベクトル空間へのエンコード、LLM にソースや構造を読ませて得られる出力の評価なども含む。Astars は、LLM によるプログラミング言語の扱いを表層文字列の問題としてではなく、構造を保ったグラフデータの問題として扱えるようにすることを狙う。
+Astars の原点は、テキストの挿入・削除を表層文字列だけの問題として扱わず、構文木やグラフ上の操作として分析したいという研究上の要求にある。
 
-## 想定利用者
+文字列 diff や search/replace は実用上重要だが、次の情報を十分には表現しない。
 
-Astars は、単体で完結する分析アプリケーションではなく、分析ツールを作る人のための engine である。主な利用者は次の層を想定する。
+- どの構文要素が編集対象だったか
+- 挿入・削除・置換・移動が、構造上どのような操作だったか
+- 編集後の node が編集前のどの node から派生したか
+- コンパイル不能な途中状態で、何が欠落し、何をしようとしていたか
+- 複数の variant が、どの操作系列によって生成されたか
 
-### Downstream Package Author
+一方、通常の AST は構文的に妥当な完成済みプログラムを表現することに最適化されており、編集中の不完全状態や削除された要素の由来をそのまま保持できるとは限らない。
 
-`astars-metrics`, `astars-code-review`, `astars-pruning`, `astars-llm-eval` など、Astars を取り込んで分析・応用 package を作る人。
+Astars はこの間を埋める。source text と syntax tree の対応を基礎にしつつ、編集操作と派生関係を first-class data へ段階的に引き上げる。
 
-この層にとって重要なのは、parser の詳細に依存せず、安定した parse/query/source-mapping API に依存できることである。
+## 戦略仮説
 
-### Software Engineering Researcher
+Astars の価値は、個別機能の新規性ではなく、次の四つを一つの小さな engine model として接続する点にある。
 
-repository mining、program reduction、code model evaluation、変換実験などを行う研究者。
+1. **Program Structure**: parser 固有 object から隔離された、操作可能なプログラム構造
+2. **Source Mapping**: structure と元 source の対応
+3. **Structural Edit**: structure を対象とする編集操作と、その source への反映
+4. **Provenance / Lineage**: 編集前後の対応、削除された要素、variant の派生関係
 
-この層にとって重要なのは、実験ごとに parser glue を作り直さず、source span と node の対応を保持したまま構造データを扱えることである。
+この組み合わせにより、次の loop を成立させる。
 
-### Practical Engineering Team
-
-社内の code review 補助、migration、architecture rule check、LLM coding assistant、test impact analysis などを作る開発チーム。
-
-この層にとって重要なのは、組織固有の policy や workflow を downstream 側に置きつつ、共通のコード構造 engine を再利用できることである。
-
-### Language Extension Contributor
-
-新しい言語 adapter や AST rule を追加する contributor。
-
-この層にとって重要なのは、parser 固有の処理を adapter に閉じ込め、Astars の core concept へどう写像するかを明確にできることである。
-
-### LLM Coding Agent / Agent Framework Builder
-
-LLM に構造化されたコード編集を行わせる agent や tool を作る人。
-
-この層にとって重要なのは、diff や行番号ではなく、名前や kind で編集対象を特定し、構文を壊さずに適用できる編集 primitive を、言語ごとに作り直さず使えることである。
-
-## エコシステム戦略
-
-Astars は、エコシステム全体の中核エンジンである。
-
-`astars` という名前は、関連プロジェクトをすべて取り込む umbrella package として空けておくのではなく、軽量な中核エンジンの名前として使う。umbrella package を作ると、依存関係、バージョン管理、責務境界の管理が重くなりやすい。
-
-そのため、方針は次の通りとする。
-
-- `astars` は軽量な core engine である。
-- `astars-*` は、Astars を使う分析・応用パッケージである。
-- downstream package は `astars` に依存する。
-- `astars` core は downstream package に依存しない。
-
-推奨する命名は次の通り。
-
-- Repository: `astars-engine`
-- PyPI distribution: `astars`
-- Python import namespace: `astars`
-- Downstream repositories/distributions: `astars-metrics`, `astars-code-review`, `astars-pruning` など
-
-これにより、利用者は中核エンジンを自然に `import astars` でき、同時に `astars-*` という名前で周辺パッケージを展開できる。
-
-## モチベーション
-
-プログラム分析では、よく同じ問題が繰り返し発生する。
-
-- parser の API が言語や実装ごとに異なる。
-- 具体構文木には parser 固有の細かな情報が多く含まれる。
-- 分析コードでは、木のノードと元ソースコードを行き来する必要がある。
-- コード変形では、抽象的な意味だけでなく正確な source span が必要になる。
-- 研究プロトタイプでは、parse、traverse、tree mapping の層を何度も作り直しがちである。
-- LLM coding agent は、diff や行番号ベースの編集形式では構文を壊しやすく、効率も悪い。名前や kind で対象を特定し、構造を保ったまま編集を適用できる基盤が求められている。
-
-Astars は、この共通基盤を提供するために存在する。各分析ツールが parser setup、tree normalization、source span mapping、traversal primitive を毎回自前で持たなくてもよい状態を目指す。
-
-## 既存ツールとの差分
-
-Astars は、ソースコードを parse、分析、変形する初めてのツールではない。したがって、Astars の価値は、既存ツールと何が違うのかを明確にして初めて安定する。
-
-### Parser Infrastructure
-
-例: [tree-sitter](https://tree-sitter.github.io/tree-sitter/)
-
-parser infrastructure は、source code を syntax tree に変換することに優れている。特に tree-sitter は、多数の言語に対して高速で堅牢な incremental concrete syntax tree を提供する。
-
-Astars は parser infrastructure と競合するのではなく、その上に乗る。
-
-違いは次の通り。
-
-- tree-sitter は parsing layer である。
-- Astars は parsing の上にある analysis engine layer である。
-
-Astars は parser 固有の API を adapter に閉じ込め、parser output を Astars-owned structure に normalize し、downstream analysis package のために source mapping を保持する。
-
-### 言語固有の AST/CST Framework
-
-例: Python `ast`, [LibCST](https://libcst.readthedocs.io/), [Roslyn](https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/compiler-api-model), [Clang LibTooling](https://clang.llvm.org/docs/LibTooling.html), [Babel parser/traverse](https://babel.dev/docs/babel-traverse)
-
-これらのツールは、それぞれの言語や platform の中で強い。特定言語に対して深い syntax、semantic、transformation capability を提供することが多い。
-
-Astars はこれらを置き換えようとしない。
-
-違いは次の通り。
-
-- 言語固有 framework は、1 つの言語 ecosystem に最適化されている。
-- Astars は、分析モジュール群が共通して使える engine shape に最適化する。
-
-Astars は Python から始めてよい。ただし core engine と language-specific adapter/rule を分離し、downstream analysis package が同じ parse/query/source-mapping workflow を再利用できる状態を目指す。
-
-### Static Analysis Platform / Query Engine
-
-例: [CodeQL](https://codeql.github.com/docs/codeql-overview/about-codeql/), [Semgrep](https://semgrep.dev/docs/semgrep-code/overview), [Joern](https://docs.joern.io/)
-
-これらのツールは、多くの場合、完成された分析 workflow を提供する。query language、security rule、data-flow / taint analysis、reporting、CI integration、vulnerability discovery workflow などを含むことがある。
-
-Astars は security scanner や完成された analysis product として競争しない。
-
-違いは次の通り。
-
-- static analysis platform は、分析の表現方法や finding の意味づけまで提供することが多い。
-- Astars は、そのような分析を構築するための structural substrate を提供する。
-
-Joern は code property graph に基づく query analysis platform であり、概念的には Astars に近い部分がある。ただし Astars はより軽量な位置に留まる。graph database を必須にせず、built-in vulnerability query language を持たず、security workflow を標準搭載しない。Astars の中心は、composable な Python package のための source-faithful program structure である。
-
-### Refactoring / Code Transformation Framework
-
-例: [OpenRewrite](https://docs.openrewrite.org/), LibCST codemods
-
-transformation framework は、recipe、codemod、migration rule などを通じて、安全に code を変更することに焦点を置く。
-
-Astars は generic な source-aware edit primitive を提供してよいが、domain-specific な transformation strategy は所有しない。
-
-違いは次の通り。
-
-- refactoring framework は、変形の判断や recipe を提供する。
-- Astars は、downstream transformation package が利用できる source mapping と primitive operation を提供する。
-
-たとえば、「選択された node に対応する source span を削除する」は Astars primitive でよい。一方で、「pruning 実験のためにどの statement を削除するか」は `astars-pruning` などの downstream package に属する。
-
-### LLM Coding Agent の編集形式
-
-例: 多くの AI coding agent が採用する diff / unified diff / search-replace 方式（[AST ベースの編集形式を比較した一例](https://geometricagi.github.io/2026/04/02/ast-edits.html)）
-
-AI coding agent の多くは、モデルに全文書き換え、search/replace、unified diff のいずれかで編集を出力させる。これらの形式は、モデルが既存コードを正確に書き写すことを前提にしており、大きなファイルほど行番号のずれや空白・引用の誤りで適用に失敗しやすい。
-
-Astars は、この編集形式そのものを提供するわけではないが、「名前や kind で対象を特定し、構造を保ったまま編集を適用する」という方式を、言語非依存の engine primitive として下支えできる。
-
-違いは次の通り。
-
-- diff ベースの編集形式は、モデルにテキストの転記を要求する。
-- Astars は、AST node を名前や kind で参照させ、source span を使って構造的に編集を適用させる。
-
-この方式は、特定の agent 実装や特定言語の parser に閉じず、`astars-*` ecosystem の中で再利用可能な primitive として提供できる。
-
-### Source Markup / Exchange Format
-
-例: [srcML](https://www.srcml.org/about.html)
-
-source markup tool は、source code を XML などの exchange format として表現し、その表現を通じて source structure にアクセスできるようにする。
-
-Astars は、それとは異なり、library-first な engine として設計する。小さな Python API、analysis-ready な node interface、明示的な source span mapping を中心に置く。
-
-違いは次の通り。
-
-- source markup tool は、portable な representation format を重視する。
-- Astars は、analysis package が組み合わせて使える runtime API を重視する。
-
-### Astars が埋めるべき隙間
-
-Astars の価値は、ユーザーが次を求めるときにある。
-
-- full static analysis platform ではなく lightweight engine が欲しい。
-- parser node API に直接依存せず、parser isolation が欲しい。
-- abstract syntax だけでなく、元 source に戻れる source-faithful mapping が欲しい。
-- downstream analysis package のための reusable primitive が欲しい。
-- research prototype と packaged analysis tool の両方を支えられる Python library surface が欲しい。
-- core を umbrella package にせず、`astars-*` ecosystem の土台が欲しい。
-
-この隙間を埋めることが、Astars の戦略的な位置づけである。
-
-### Core Differentiator
-
-Astars のオリジナリティは、「syntax tree を通じて code を編集できる唯一のツールである」という点には置かない。既存にも、source code を parse、rewrite、regenerate できるツールは複数存在する。
-
-Astars のオリジナリティは、次の組み合わせにある。
-
-> Astars は、source-faithful で編集可能な program structure を、downstream analysis package のための軽量で analysis-neutral な engine として提供する。
-
-この組み合わせの具体的な入口の一つが、LLM coding agent に対して名前/kind ベースの構造化編集 interface を提供することである。編集そのものの独自性ではなく、編集結果を含めて source-faithful に解析し続けられることが Astars の価値である。
-
-つまり Astars は、source に戻れる構造編集を、完成された refactoring product、scanner、codemod framework、言語固有 toolkit としてではなく、再利用可能な engine primitive として提供する。
-
-重要な違いは次の通り。
-
-- 既存ツールの多くは、parsing、analysis intent、transformation recipe、reporting、CLI workflow、言語固有の仮定をまとめて提供する。
-- Astars は、parser-isolated な structure、source mapping、traversal、query、edit primitive を公開し、他の package がそれらを組み合わせられるようにする。
-
-言い換えると、Astars は AST editing、source generation、tree querying のような単一機能だけで独自性を主張しない。価値は、それらの能力を `astars-*` ecosystem のための小さな engine surface としてまとめる点にある。
-
-## Design Bets
-
-Astars は、いくつかの設計上の賭けに基づいて作る。これらは、実装や API に迷ったときの判断基準になる。
-
-### Source Mapping は Core Value である
-
-Astars の価値は、単に tree を作ることではなく、分析対象の node から元 source に戻れることにある。source span、source slice、edit primitive は後付けの補助機能ではなく、core concept として扱う。
-
-### Parser は交換可能であるべき
-
-初期実装では tree-sitter を使うが、Astars の public workflow が tree-sitter object に直接依存しないようにする。parser 固有の API は adapter に閉じ込め、downstream package は Astars-owned structure に依存する。
-
-### AST は Analysis-Friendly、CST は Source-Faithful として役割を分ける
-
-分析しやすい抽象構造と、source に忠実な構文情報は役割が違う。Astars は AST-like structure を分析の主対象にしつつ、source span や raw syntax との mapping を通じて source-faithful な操作を可能にする。
-
-### Core は軽く保つ
-
-`astars` core は、downstream package が安心して依存できる軽量 engine として保つ。metrics、review policy、pruning strategy、visualization、reporting などは core に入れず、`astars-*` package に分離する。
-
-### Public API は小さく保つ
-
-Astars は、広い内部構造をそのまま public API として公開しない。downstream package が依存する surface を小さく保つことで、engine の進化と ecosystem の安定性を両立させる。
-
-### Python を対象言語の Reference Path にする
-
-最初は Python を reference language として、parse、AST construction、source mapping、query、edit primitive の一連の流れを安定させる。その上で、他言語対応を architecture の検証対象として広げる。これは分析対象言語(何を parse するか)の話であり、Astars 自体の実装言語とは別の軸である。
-
-### Core Engine は Rust、Python/TS は binding 経由の consumer
-
-Astars core engine(parse / normalize / map / query / edit)は Rust で実装する。Python package と TypeScript package は、Rust core への binding(PyO3 / maturin、napi-rs 等)を通じて提供し、ロジックを言語ごとに重複させない。
-
-これは、repository 群規模での速度とメモリ効率、および ML/研究者向け(Python)と agent 統合向け(TypeScript)の両方を同じ core から自然に満たすための判断である。tree-sitter や ast-grep が同種の構成(Rust/C core + 複数言語 binding)を採用している。
-
-repository 構成は、単一 repository(monorepo)に `astars-core`(Rust)、Python binding、Node binding をまとめる形を採用する。構成案の比較は [../design/repo-structure.drawio.svg](../design/repo-structure.drawio.svg) に残す。
-
-## Trade-offs
-
-Astars は、すべての方向に広げるのではなく、engine としての価値を守るためにいくつかの trade-off を受け入れる。
-
-### Full Semantic Analysis は持たない
-
-型解決、data-flow、taint analysis、symbol resolution などは重要だが、初期 core の責務にはしない。必要であれば downstream package や外部 tool と組み合わせる。
-
-### Formatting Preservation の完全性を最初から約束しない
-
-Astars は source-faithful な mapping と edit primitive を重視するが、初期段階からすべての formatting、comment、空白、括弧の完全な保持を保証するわけではない。lossless transformation をどこまで保証するかは、API と実装が安定してから段階的に定義する。
-
-### 多言語対応より Reference Path の安定を優先する
-
-Astars は language-extensible であるべきだが、最初から広い language coverage を約束しない。Python で engine の形を固め、それから second language で設計を検証する。
-
-### 汎用性より小さな Public API を優先する
-
-内部的には多くの情報を持っていても、public API として安定させる範囲は絞る。必要な情報を全部露出するより、downstream package が長く依存できる小さな contract を優先する。
-
-### Product ではなく Engine に留まる
-
-Astars は CLI scanner、code review product、metrics dashboard、refactoring recipe collection にならない。そうした機能は downstream package として作る。
-
-## 位置づけ
-
-Astars は engine であり、end-user 向けの分析プロダクトではない。
-
-Astars は、他のツールが依存できる構造的な土台を提供する。メトリクス計算、コード smell 検出、レポート生成、pruning、LLM 出力評価、可視化、レビュー支援などは、Astars の上に構築される downstream package の責務である。
-
-想定される downstream package の例:
-
-- `astars-metrics`: complexity、node count、source statistics など
-- `astars-pruning`: 研究用途の pruning strategy
-- `astars-code-review`: code review 向けの分析 workflow
-- `astars-llm-eval`: code model evaluation dataset 向け utility
-- `astars-visualizer`: graph や source mapping の可視化
-
-これらは Astars core に組み込むのではなく、Astars を import して使う別パッケージとして設計する。
-
-概念的には、Astars は ecosystem の中心に位置する。
-
-```mermaid
-flowchart TB
-    subgraph Downstream["Downstream astars-* packages"]
-        Metrics["astars-metrics\nmetrics / statistics"]
-        Review["astars-code-review\nreview workflows"]
-        Pruning["astars-pruning\nprogram reduction"]
-        Eval["astars-llm-eval\nmodel evaluation"]
-        Viz["astars-visualizer\nvisual exploration"]
-    end
-
-    subgraph Engine["astars core engine"]
-        API["Public API"]
-        Ops["Query / Traverse / Edit primitives"]
-        Model["AST-like structures\nSource spans\nSyntaxGraph"]
-        Adapter["Parser adapters\n(tree-sitter, etc.)"]
-    end
-
-    Parsers["Parser infrastructure"]
-    Source["Source code"]
-
-    Metrics --> API
-    Review --> API
-    Pruning --> API
-    Eval --> API
-    Viz --> API
-
-    API --> Ops
-    Ops --> Model
-    Model --> Adapter
-    Adapter --> Parsers
-    Parsers --> Source
+```text
+構造として観測する
+  -> 構造を基準に編集する
+  -> 新しい program state を得る
+  -> 元の state との関係を保ったまま再び観測・評価する
 ```
 
-依存方向は `astars` core に向かう。downstream package は engine に依存するが、engine は downstream analysis package には依存しない。
+parse/query/edit/diff は独立した機能一覧ではなく、この loop を構成する primitive である。
+
+## 中心モデル
+
+### Program State
+
+Astars が扱う中心単位は、最終的には単独の `SyntaxTree` ではなく program state である。program state は概念的に次を含む。
+
+- source representation
+- structural representation
+- source と structure の mapping
+- validity / diagnostics
+- state の由来
+
+現在の実装がこの型をそのまま持つという意味ではない。将来の API と設計を評価するための概念モデルである。
+
+### Structural Edit Operation
+
+編集は一時的な副作用ではなく、保存・検証・再生・比較できる値として扱う方向を目指す。
+
+候補となる操作には、Insert、Delete、Replace/Update、Move、Copy/Graft、Subtree Pruning、操作の合成がある。どの操作を core primitive として確定するかは、各段階の実証後に決める。
+
+### Variant / Provenance Graph
+
+複数の program state と edit operation の関係を graph として追跡する。
+
+- 累積的に編集する sequential variant
+- 同じ origin から独立に生成する variant
+- subtree 単位の派生
+- 編集前後の node 対応
+- 削除・置換された node の provenance
+
+系譜追跡は補助 metadata ではなく、最終像の中心機能である。ただし、現在の stage で未実装であることと、戦略上重要であることは分けて扱う。
+
+## 不完全な program state の扱い
+
+Astars は、構文不完全な状態を core の対象に含める。ただし、由来の分からない任意の壊れた文字列について編集意図を推測しない。
+
+区別するのは次の二つである。
+
+1. **Astars が把握する structural edit から派生した不完全状態**
+   - 適用した操作、元 node、欠落した要素との関係を保持する
+   - parse recovery の結果だけに依存せず、編集意図を provenance から説明できる状態を目指す
+2. **外部から単独で与えられた不正 source**
+   - parser が回復できた structure、source span、diagnostics を提供する
+   - 不明な編集意図を Astars が捏造しない
+
+過去の研究で用いた Extended AST や削除 placeholder は、この要求を満たす先行設計である。Astars が同じ表現を採用するか、operation log と graph mapping で実現するかは未決定とする。
+
+## 想定利用者と優先順位
+
+### Primary: 構造的 program transformation を行う研究者
+
+program reduction、mutation、code similarity、edit-distance learning、code model evaluation などを行う研究者を最初の利用者とする。
+
+この利用者が必要とするのは、単なる parser wrapper ではない。構造を基準に variant を生成し、source へ反映し、編集系列と派生関係を保持し、評価ロジックを自由に組み合わせられる substrate である。
+
+### Secondary Validation: LLM coding agent / framework 作者
+
+LLM に全文転記や行番号ベース diff だけを要求せず、名前・kind・関係で対象を指定させ、編集を適用・再検証したい tool 作者を第二の利用者とする。
+
+LLM agent は Astars の起源ではないが、structure-addressed edit と incomplete state handling が実務でも価値を持つかを検証する重要な用途である。Astars 自体は coding agent product にはならない。
+
+### Supporting Users
+
+次は engine の発展に伴って現れる利用者であり、初期戦略の主語にはしない。
+
+- downstream package author
+- repository mining / metrics / review tool の作者
+- language adapter contributor
+- visualization tool の作者
+
+「Astars を使う package を作る人」を循環的な唯一の顧客像にしない。まず具体的な研究 workflow と LLM editing workflow で必要性を実証する。
 
 ## Core の責務
 
-Astars core は、少数の engine responsibility に集中する。
+Astars core は次に責任を持つ。
 
-### Parse
+### Parse and Recover
 
-ソースコードを読み、parser 実装を呼び出す。初期実装では tree-sitter を想定する。
+- source を parse する
+- parser recovery から得られる structure と diagnostics を保持する
+- parser 固有 API を adapter 内へ隔離する
 
-parser integration は system boundary に置く。parser 固有の API は、engine の外側に漏らさず adapter 層に閉じ込める。
+### Represent and Map
 
-### Normalize
+- Astars-owned な node / structure を提供する
+- node、source bytes、span、parent/child、field の対応を保持する
+- 将来は valid tree だけでなく、編集由来の incomplete state を表現する
 
-parser 固有の構造を、Astars が所有する表現へ変換する。
+### Query and Address
 
-normalization の目的は、すべての言語差を消すことではない。目的は、raw parser node よりも分析しやすい、安定した表現を提供することである。
+- traverse、kind、field、source position 等で node を解決する
+- 編集対象を byte offset だけに依存せず指定できる primitive を提供する
+- selector policy や曖昧性解消の責任範囲は実証を通じて定める
 
-### Map
+### Apply and Record Structural Edits
 
-次の対応関係を信頼できる形で保持する。
+- node を基準に source-aware edit を適用する
+- edit operation を記録・検証・再生できる方向へ進化させる
+- 編集後の program state と diagnostics を返す
 
-- source bytes/text
-- parser-origin nodes
-- Astars syntax nodes
-- AST nodes
-- source spans
+### Track Correspondence and Lineage
 
-source mapping は Astars の中核である。分析結果は、可能な限り元ソースへ戻れるべきである。
+- 編集前後の node / source / operation の対応を保持する
+- cumulative edit と independent variant を区別する
+- 削除された node を単に情報消失させない model を持つ
 
-### Query And Traverse
+## Core が所有しないもの
 
-ノードを検索・走査・解決するための再利用可能な primitive を提供する。
+Astars は program state と operation を表現するが、その価値判断は行わない。
 
-例:
+- どの node を pruning すべきか
+- mutation が良いか悪いか
+- code similarity metric の定義
+- LLM / CodeBERT 等の model score
+- benchmark / dataset の定義
+- review comment を出すべきか
+- migration recipe
+- 型解決、data-flow、taint analysis 等の complete semantic analysis
+- 編集後 program の意味的正しさやコンパイル成功の保証
+- visualization、reporting、CI product
 
-- AST を安定した順序で traverse する
-- kind によって node を検索する
-- source offset から node を解決する
-- node の source span を収集する
-- mapped node から source slice を取り出す
+これらは downstream research code、package、agent、外部 tool の責務とする。
 
-### Primitive Transform
+## 既存ツールに対する位置づけ
 
-汎用的で source-aware な変形 primitive のみを提供する。
+Astars は parser、diff tool、refactoring framework、static analysis platform の代替を一括して目指すものではない。
 
-例:
+- tree-sitter 等の parser infrastructure は、高速で堅牢な syntax tree を提供する。Astars はその上で、source mapping、edit operation、variant lineage を所有する
+- GumTree 等の structural diff は、独立した二つの tree 間の対応と edit script を求める。Astars はそれに加えて、既知の operation から派生する途中 state と lineage を扱う
+- LibCST や言語固有 AST framework は、特定言語で深い構文操作を提供する。Astars は深さで競争せず、研究・agent workflow が共有できる engine model と parser isolation を重視する
+- codemod / refactoring framework は、妥当な最終 source と transformation recipe を重視する。Astars は recipe を所有せず、不完全な途中状態も含めて operation と結果を観測可能にする
+- static analysis platform は query、semantic analysis、finding、reporting を含むことがある。Astars は分析判断を持たず、その下で再利用できる program state substrate に留まる
 
-- mapped source span を削除する
-- mapped source span を置換する
-- node に対応する source を抽出する
-- node selection から edit plan を作る
+AST editing、tree query、source generation の個別機能だけを独自性として主張しない。Astars の差分は、source-faithful な structure、first-class edit、incomplete state、provenance を、小さな analysis-neutral engine として接続する点に置く。
 
-domain-specific な strategy は Astars core の外に置く。たとえば、「pruning 実験のために statement を reverse postorder で削除する」は downstream module の strategy であり、「この node に対応する source span を削除する」は engine primitive である。
+## Design Principles
 
-## 境界
+### Structure-First, Not Text-Only
 
-Astars は、分析結果の解釈を所有しない。
-
-Astars は、ある node が `FunctionDef` であること、source span を持つこと、children を持つことを提供してよい。しかし、その関数が複雑すぎるか、レビューコメントを作るべきか、データセットから削除すべきかは判断しない。
-
-それらの判断は、外部の分析モジュールに属する。
-
-## Core Principles
+source text を捨てないが、操作の意味を byte range だけに還元しない。対象、操作、派生関係を program structure 上で説明できることを目指す。
 
 ### Source-Faithful
 
-Astars は、常に元ソースへ戻る経路を保持する。source span と source slice は、単なる debug convenience ではなく first-class concern である。
+node から source span / source slice へ戻れることを core value とする。source mapping は optional feature にしない。
+
+### Edit- and Provenance-Faithful
+
+現在の状態だけでなく、どの元構造にどの操作を適用して生じたかを保持する。削除された要素も、必要な範囲で由来を追跡できるようにする。
+
+### Incomplete States Are Data
+
+構文不完全・コンパイル不能な途中状態を、常に failure として捨てない。編集由来の incomplete state は研究・agent workflow の観測対象である。
 
 ### Parser-Isolated
 
-parser 固有の API は adapter に閉じ込める。通常の workflow では、engine user が tree-sitter node object に直接依存する必要がない状態を目指す。
+初期実装では tree-sitter を使うが、public workflow を tree-sitter object に直接依存させない。parser recovery と Astars の edit provenance も混同しない。
 
 ### Analysis-Neutral
 
-Astars は構造と primitive を提供するが、domain-specific な判断は行わない。特定の分析目的を core model に埋め込まず、多様な分析目的を支えられるようにする。
+Astars は structure、mapping、operation、lineage を提供する。研究仮説、分析 policy、評価関数は core に埋め込まない。
 
-### Lightweight Core
+### Small, Composable, Reliable
 
-Astars は、他の package が安心して依存できる軽量な core であるべきである。重い分析 workflow、可視化、reporting、研究固有の strategy は engine の外に置く。
+機能数ではなく、少数の primitive を組み合わせて end-to-end workflow が成立することを優先する。新しい API は、具体的な workflow を止めていることが確認されてから追加する。
 
-### Language-Extensible
+### Staged Evolution
 
-Astars は、他言語を追加できる設計にする。Python を reference language としつつ、architecture は他言語へ拡張可能な状態を保つ。
+最終像を graph-native transformation に置きつつ、そこへ一度に飛ばない。各 stage を独立して利用・検証可能にし、次段階の設計を実例から導く。
 
-### Composable
+### Python Reference Path, Language-Extensible Core
 
-Astars は library として import しやすいべきである。public API は小さく、安定し、downstream package が使いやすい形にする。
+最初は Python を対象言語の reference path とする。他言語対応は、Python 上で operation と lineage model が成立した後、architecture の一般性を検証する目的で行う。
 
-### Minimal But Reliable
+### Rust Core, Binding Consumers
 
-Astars は、広く浅い分析機能を増やすよりも、少数の信頼できる primitive を提供することを優先する。
+core engine は Rust に置き、Python / Node は binding consumer とする。研究用途では Python、agent 統合では Node が主な入口になり得るが、core logic を重複させない。
 
-## 初期スコープ
+## 現在地と最終像
 
-最初の stable version は、Python を reference language として進める。
+現在の Rust 実装は、tree-sitter CST をほぼ 1:1 で arena に写し、node を source span の address として使う stage にある。`replace` は structure-addressed text edit であり、tree-native edit ではない。
 
-これは Astars を長期的に Python-only にするという意味ではない。Python を使って、engine design、public API、tests、source mapping model を検証するという意味である。
+これは最終像ではないが、捨てるべき実装でもない。parse、source mapping、node addressing、再 parse、diagnostics は、後続 stage の実行基盤になる。
 
-engine 自体の実装言語は Rust とする。現在の Python 実装は、その設計を検証する prototype として扱い、Rust core が安定した段階で、Python は core への binding package に移行する。
+最終像では、次を扱う。
 
-初期 stable scope:
+- structural edit operation を値として表現する
+- subtree の挿入・削除・移動・移植を扱う
+- operation sequence を合成・保存・再生する
+- valid / incomplete state を同じ lineage 上で扱う
+- program variants を graph として追跡する
+- source を program state から得られる表現の一つとして扱う
 
-- Python source を string と file から parse する
-- Astars-owned syntax/AST structure を構築する
-- source-to-node と node-to-source の mapping を提供する
-- AST node を traverse/query する
-- source span extraction を提供する
-- downstream tool 向けの小さな public API を定義する
-- 言語追加の方法を文書化する
+段階の詳細と実証条件は [ROADMAP.ja.md](ROADMAP.ja.md) に定める。
 
-## Non-Goals
+## Ecosystem と配布
 
-Astars core は次のものではない。
+`astars` は軽量な core engine の名前とする。pruning、LLM evaluation、metrics、review、visualization 等は必要に応じて downstream package / research project として分離する。
 
-- full compiler frontend
-- complete semantic analyzer
-- IDE または LSP implementation
-- code quality product
-- review automation product
-- metrics package
-- visualization application
-- research-specific pruning framework
-- すべての `astars-*` project を install する umbrella package
+- core は downstream policy に依存しない
+- downstream は stable な core primitive に依存する
+- umbrella package を先に作らない
+- consumer が存在しない interface や package を構想だけで増やさない
 
-これらは Astars の上に構築してよいが、core engine の責務には含めない。
+repository 名、PyPI / npm 上の最終 package 名は、戦略と public API が安定してから再評価する。rename 自体を価値としない。
+
+## Trade-offs
+
+- 最初から完全な semantic model を持たない
+- 最初から全言語を対象にしない
+- 最初から lossless pretty-printer を約束しない
+- arbitrary malformed source の編集意図を推測しない
+- 研究用の全アルゴリズムを core に取り込まない
+- 最終像のために現在の小さな API を過剰一般化しない
 
 ## Open Questions
 
-- `SyntaxTree` の CST(tree-sitter の生ノードを 1:1 で使う今の形)を stable public API にするか、将来 rule 正規化した AST 層を別に設けるか
-- `NodeId` の stable ID を、edit や再 parse をまたいでどこまで保証するか(`EDIT_MODEL.ja.md` 操作9・10 と関連)
-- 既存 repository を `astars-engine` に rename するべきか、現状の `astars` のままにするか
+- current CST、将来の normalized AST、edit graph を public model 上でどう分離するか
+- incomplete state を placeholder node、operation overlay、別 graph のどれで表現するか
+- node identity を単一 tree、edit 前後、variant lineage の各範囲でどう定義するか
+- source projection 時に comment、whitespace、formatting をどこまで保持するか
+- structural operation の最小集合を何にするか
+- operation log と program state の serialization format をいつ安定化するか
+- second language をどの stage で導入し、何をもって language-extensible と判定するか

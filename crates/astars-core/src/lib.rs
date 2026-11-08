@@ -131,7 +131,10 @@ mod tests {
     #[test]
     fn parse_file_reads_and_parses_the_file() {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!("astars-core-parse-file-test-{}.py", std::process::id()));
+        let path = dir.join(format!(
+            "astars-core-parse-file-test-{}.py",
+            std::process::id()
+        ));
         std::fs::write(&path, "x = 1\n").unwrap();
 
         let result = parse_file(&path, Lang::Python, "utf-8").expect("parse_file should succeed");
@@ -154,10 +157,16 @@ mod tests {
         // Python source file, as the "encoding" parameter is meant to handle.
         let (shift_jis_bytes, _, had_errors) =
             encoding_rs::SHIFT_JIS.encode("x = 1  # こんにちは\n");
-        assert!(!had_errors, "test fixture text must be representable in Shift-JIS");
+        assert!(
+            !had_errors,
+            "test fixture text must be representable in Shift-JIS"
+        );
 
         let dir = std::env::temp_dir();
-        let path = dir.join(format!("astars-core-parse-file-sjis-test-{}.py", std::process::id()));
+        let path = dir.join(format!(
+            "astars-core-parse-file-sjis-test-{}.py",
+            std::process::id()
+        ));
         std::fs::write(&path, &shift_jis_bytes).unwrap();
 
         let result =
@@ -171,14 +180,19 @@ mod tests {
     #[test]
     fn parse_file_reports_error_for_unknown_encoding_label() {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!("astars-core-parse-file-badenc-test-{}.py", std::process::id()));
+        let path = dir.join(format!(
+            "astars-core-parse-file-badenc-test-{}.py",
+            std::process::id()
+        ));
         std::fs::write(&path, "x = 1\n").unwrap();
 
         let err = parse_file(&path, Lang::Python, "not-a-real-encoding")
             .expect_err("unknown encoding label should error");
         std::fs::remove_file(&path).unwrap();
 
-        assert!(matches!(err, AstarsError::UnsupportedEncoding(label) if label == "not-a-real-encoding"));
+        assert!(
+            matches!(err, AstarsError::UnsupportedEncoding(label) if label == "not-a-real-encoding")
+        );
     }
 
     #[test]

@@ -6,7 +6,7 @@
 //! purely to mirror `astars_core` types across the FFI boundary; see the
 //! "bindings/node" class diagram in `docs/design/ARCHITECTURE.ja.md`
 //! for the design this module implements (the edit primitive is explained in
-//! `docs/design/EDIT_MODEL.ja.md`, diagnostics behavior in
+//! `docs/design/OPERATION_MODEL.ja.md`, diagnostics behavior in
 //! `docs/design/SOURCE_MODEL.ja.md`).
 //!
 //! Node side: `import { parseStr, JsLang } from '@astars/native'` (the
@@ -110,7 +110,7 @@ impl JsSyntaxTree {
 
     /// All node ids in preorder, collected into one `number[]` - not a
     /// lazy iterator, so walking a large tree costs one FFI call, not one
-    /// per node (EDIT_MODEL.ja.md operation 11).
+    /// per node (see `docs/design/ARCHITECTURE.ja.md`).
     #[napi]
     pub fn walk(&self) -> Vec<u32> {
         self.inner.walk().map(NodeId::as_u32).collect()
@@ -118,7 +118,11 @@ impl JsSyntaxTree {
 
     #[napi]
     pub fn find(&self, kind: String) -> Vec<u32> {
-        self.inner.find(&kind).into_iter().map(NodeId::as_u32).collect()
+        self.inner
+            .find(&kind)
+            .into_iter()
+            .map(NodeId::as_u32)
+            .collect()
     }
 
     #[napi]
@@ -149,7 +153,7 @@ impl JsSyntaxTree {
     /// The child of `id` whose field name is `fieldName` (e.g. `"name"` on
     /// a `function_definition`, `"left"`/`"right"` on an `assignment`). To
     /// find a node by name, combine with `find(kind)` and `sourceOf` - see
-    /// `docs/design/EDIT_MODEL.ja.md`'s "名前/kind アドレス指定(操作10)の設計".
+    /// ADR 0003 (`docs/design/decisions/0003-analysis-neutral-field-navigation.ja.md`).
     #[napi]
     pub fn child_by_field_name(&self, id: u32, field_name: String) -> Option<u32> {
         self.inner
@@ -165,7 +169,7 @@ impl JsSyntaxTree {
 
     /// The whole subtree rooted at `id`, as one `JsNodeInfo[]` - bulk export
     /// for rendering/serializing a tree without node-by-node FFI calls
-    /// (EDIT_MODEL.ja.md scenario D / operation 11).
+    /// (see `docs/strategy/USE_CASES.ja.md`).
     #[napi]
     pub fn dump(&self, id: u32) -> Vec<JsNodeInfo> {
         let mut result = Vec::new();
@@ -181,7 +185,7 @@ impl JsSyntaxTree {
 
     /// Replace `target`'s source span with `new_text`, producing a new
     /// `JsSyntaxTree` wrapped in a `JsEditResult`. `self` is untouched. See
-    /// `docs/design/EDIT_MODEL.ja.md` ("編集 primitive(v1)の設計").
+    /// ADR 0002 (`docs/design/decisions/0002-stage-2-source-splice-and-incremental-reparse.ja.md`).
     #[napi]
     pub fn replace(&self, target: u32, new_text: String) -> JsEditResult {
         let edit = self.inner.replace(NodeId::from_u32(target), &new_text);
@@ -191,7 +195,7 @@ impl JsSyntaxTree {
     /// Did `id` (a node in `self`, the tree *before* some `edit`) survive
     /// into `edit.tree` unchanged? `id` must come from `self`, not from
     /// `edit.tree` - `NodeId`s from different trees are not comparable
-    /// (see `docs/design/EDIT_MODEL.ja.md`).
+    /// (see `docs/design/PROGRAM_MODEL.ja.md`).
     #[napi]
     pub fn unchanged_in(&self, id: u32, edit: &JsEditResult) -> bool {
         self.inner.unchanged_in(NodeId::from_u32(id), &edit.inner)
@@ -201,7 +205,7 @@ impl JsSyntaxTree {
     /// sources, not connected by a `replace()` lineage (e.g. two versions
     /// of the same file) - and returns a `JsEditResult` as if `newSource`
     /// had been reached by editing `self`. See
-    /// `docs/design/EDIT_MODEL.ja.md` ("構造的 diff(操作13)の設計").
+    /// ADR 0004 (`docs/design/decisions/0004-independent-source-diff-is-inferred.ja.md`).
     #[napi]
     pub fn diff_with(&self, new_source: napi::bindgen_prelude::Buffer) -> JsEditResult {
         let edit = self.inner.diff_with(&new_source);
@@ -214,7 +218,11 @@ impl JsSyntaxTree {
     /// ERROR/MISSING node から直接読む").
     #[napi]
     pub fn diagnostics(&self) -> Vec<JsDiagnostic> {
-        self.inner.diagnostics().into_iter().map(JsDiagnostic::from_core).collect()
+        self.inner
+            .diagnostics()
+            .into_iter()
+            .map(JsDiagnostic::from_core)
+            .collect()
     }
 }
 
@@ -266,7 +274,10 @@ impl JsDiagnostic {
                 astars_core::Severity::Error => "error".to_string(),
             },
             message: diagnostic.message,
-            span: vec![diagnostic.span.start_byte as u32, diagnostic.span.end_byte as u32],
+            span: vec![
+                diagnostic.span.start_byte as u32,
+                diagnostic.span.end_byte as u32,
+            ],
         }
     }
 }
@@ -294,7 +305,11 @@ pub fn parse_bytes(source: napi::bindgen_prelude::Buffer, lang: JsLang) -> JsSyn
 /// the result (see `astars_core::parse_file`). Throws on an I/O failure or
 /// an unrecognized `encoding` label.
 #[napi]
-pub fn parse_file(path: String, lang: JsLang, encoding: Option<String>) -> napi::Result<JsSyntaxTree> {
+pub fn parse_file(
+    path: String,
+    lang: JsLang,
+    encoding: Option<String>,
+) -> napi::Result<JsSyntaxTree> {
     let encoding = encoding.as_deref().unwrap_or("utf-8");
     let result = astars_core::parse_file(std::path::Path::new(&path), lang.into(), encoding)
         .map_err(|err| napi::Error::from_reason(err.to_string()))?;
@@ -307,20 +322,25 @@ mod tests {
 
     #[test]
     fn converts_lang_both_ways() {
-        assert_eq!(astars_core::Lang::from(JsLang::Python), astars_core::Lang::Python);
+        assert_eq!(
+            astars_core::Lang::from(JsLang::Python),
+            astars_core::Lang::Python
+        );
         assert_eq!(JsLang::from(astars_core::Lang::Python), JsLang::Python);
     }
 
     #[test]
     fn node_id_round_trips_through_u32() {
-        let tree = astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
+        let tree =
+            astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
         let root = tree.root();
         assert_eq!(NodeId::from_u32(root.as_u32()), root);
     }
 
     #[test]
     fn walk_and_node_info_agree_on_node_count() {
-        let core_tree = astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
+        let core_tree =
+            astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
         let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
         let ids = js_tree.walk();
         assert!(!ids.is_empty());
@@ -331,7 +351,8 @@ mod tests {
 
     #[test]
     fn dump_returns_whole_subtree() {
-        let core_tree = astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
+        let core_tree =
+            astars_core::parse_str("def hello():\n    return 1\n", astars_core::Lang::Python).tree;
         let js_tree = JsSyntaxTree::new(JsLang::Python, core_tree);
         let root_id = js_tree.root_id();
         let dumped = js_tree.dump(root_id);
@@ -388,7 +409,10 @@ mod tests {
             JsLang::Python,
             astars_core::parse_bytes(b"x = 1\n", astars_core::Lang::Python).tree,
         );
-        let from_str = JsSyntaxTree::new(JsLang::Python, astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree);
+        let from_str = JsSyntaxTree::new(
+            JsLang::Python,
+            astars_core::parse_str("x = 1\n", astars_core::Lang::Python).tree,
+        );
         assert_eq!(from_bytes.walk().len(), from_str.walk().len());
     }
 
@@ -422,7 +446,13 @@ mod tests {
             })
             .expect("should find the function named hello");
 
-        assert_eq!(js_tree.source_of(hello), "def hello(name):\n    return name");
-        assert_eq!(js_tree.child_by_field_name(hello, "no_such_field".to_string()), None);
+        assert_eq!(
+            js_tree.source_of(hello),
+            "def hello(name):\n    return name"
+        );
+        assert_eq!(
+            js_tree.child_by_field_name(hello, "no_such_field".to_string()),
+            None
+        );
     }
 }

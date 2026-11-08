@@ -28,7 +28,7 @@ impl ParseAdapter {
 /// Build a `tree_sitter::Parser` configured for `lang`. Exposed to `syntax`
 /// (not just used internally by `ParseAdapter::parse`) because the edit
 /// primitive needs to re-parse with the same language after `tree.edit()`
-/// (EDIT_MODEL.ja.md's edit policy) - `SyntaxTree` only remembers `Lang`,
+/// (ADR 0002) - `SyntaxTree` only remembers `Lang`,
 /// not a ready-to-use parser.
 pub(crate) fn parser_for(lang: Lang) -> tree_sitter::Parser {
     let language = match lang {

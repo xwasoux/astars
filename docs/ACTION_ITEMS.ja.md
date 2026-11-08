@@ -1,76 +1,86 @@
 # Astars Action Items
 
-最終確認日: 2026-10-23
+最終確認日: 2026-11-08
 
 この文書は、作業を再開するときに最初に読むための短期 action item 一覧である。
 背景や設計理由は各計画文書に残し、ここでは「次に何をするか」と完了条件だけを管理する。実装の詳細な経緯は `git log` を参照。
 
 関連文書:
 
-- [strategy/STRATEGY.ja.md](strategy/STRATEGY.ja.md) — ビジョンと Core Differentiator(「強みの実現状況」が何を実現しようとしているかの根拠)
-- [design/ARCHITECTURE.ja.md](design/ARCHITECTURE.ja.md) — クラス図と v0 scope
-- [design/EDIT_MODEL.ja.md](design/EDIT_MODEL.ja.md) — 編集まわりの設計根拠、シナリオ、操作リスト
-- [release/NEXT_RELEASE_PLAN.ja.md](release/NEXT_RELEASE_PLAN.ja.md)
-- [design/NODE_RESOLUTION.ja.md](design/NODE_RESOLUTION.ja.md)
-- [release/RELEASE_STRATEGY.ja.md](release/RELEASE_STRATEGY.ja.md)
+- [strategy/STRATEGY.ja.md](strategy/STRATEGY.ja.md) — ビジョン、戦略仮説、coreの責務
+- [design/README.md](design/README.md) — design文書の索引と読む順序
+- [design/ARCHITECTURE.ja.md](design/ARCHITECTURE.ja.md) — target architectureとcurrent / target gap
+- [design/OPERATION_MODEL.ja.md](design/OPERATION_MODEL.ja.md) — operationの意味論と適用規約
+- [design/PROVENANCE_MODEL.ja.md](design/PROVENANCE_MODEL.ja.md) — lineageとstructural correspondence
+- [release/NEXT_RELEASE.ja.md](release/NEXT_RELEASE.ja.md)
+- [design/decisions/](design/decisions/) — 実装上の設計判断と理由
+- [release/RELEASE_POLICY.ja.md](release/RELEASE_POLICY.ja.md)
+- [release/RELEASE_PROCESS.ja.md](release/RELEASE_PROCESS.ja.md)
 - [strategy/ROADMAP.ja.md](strategy/ROADMAP.ja.md)
 
-## v0 Scope: 完了
+## 直近の作業順
 
-Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindings/node`)で、以下を実装・動作確認済み(Python/Node 両方で実機確認)。設計の詳細は [design/ARCHITECTURE.ja.md](design/ARCHITECTURE.ja.md) のクラス図、編集まわりの根拠は [design/EDIT_MODEL.ja.md](design/EDIT_MODEL.ja.md) を参照。
+1. Stage 2の未通過Evidence Gateを埋める
+   - [ ] 不正な`NodeId` / offsetをpanicではなく制御されたerrorとして返す
+   - [ ] deep treeとFFI境界のfailure testを追加する
+   - [ ] node単位のvariant生成reference workflowを自動テストする
+2. 次回releaseのscopeを決める
+   - [ ] field navigationとindependent diffを同じreleaseへ含めるか決定する
+   - [ ] `EditResult`をknown editとinferred diffで共有するかpublic API reviewする
+   - [ ] target versionを確定し、`NEXT_RELEASE`を`Planned`へ進める
+3. Stage 3の設計へ進む条件を確認する
+   - [ ] reference workflowから最小Operation dataを抽出する
+   - [ ] research workflowとLLM tool workflowで同じOperation Modelを使えるか検証する
+
+順序とstageの完了条件は[ROADMAP.ja.md](strategy/ROADMAP.ja.md)、release固有の判断は[NEXT_RELEASE.ja.md](release/NEXT_RELEASE.ja.md)を正とする。
+
+## Current Baseline
+
+Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindings/node`)で、以下を実装・動作確認済み(Python/Node 両方で実機確認)。設計の詳細は[design/ARCHITECTURE.ja.md](design/ARCHITECTURE.ja.md)、編集方式の判断は[ADR 0002](design/decisions/0002-stage-2-source-splice-and-incremental-reparse.ja.md)を参照。
 
 - monorepo 構成(`crates/astars-core` + `bindings/python` + `bindings/node`)。クラス図は draw.io から Mermaid に移行済み
 - parse: `parse_str` / `parse_bytes` / `parse_file`(`parse_file` は WHATWG encoding ラベル対応、`encoding_rs` 使用)
 - query: `walk` / `find(kind)` / `node_at(offset)` / `span_of` / `source_of` / `point_at(byte_offset)`(0-based line/column)
-- 編集 primitive(v1): `replace(target, new_text)` + `unchanged_in(id, edit)`(`tree.edit()` + `changed_ranges` ベース、`EDIT_MODEL.ja.md` 参照)
+- 編集 primitive(v1): `replace(target, new_text)` + `unchanged_in(id, edit)`(`tree.edit()` + `changed_ranges`ベース、ADR 0002参照)
+- unreleased: `child_by_field_name`によるfield navigation
+- unreleased: `diff_with` / `EditResult::unchanged`によるindependent-source changed-range近似
 - diagnostics: parser recovery(`ERROR`/`MISSING` node)の公開
 - examples(`examples/python/basic_parse.py` / `examples/node/basic-parse.js`)を上記全機能のデモに更新済み
 
-2026-10-21、AWS が Kiro IDE 向けに AST ベースの構造化編集を公開したことを受け、v0 scope の残作業より編集 primitive(`EDIT_MODEL.ja.md` 操作7・8)の実装を優先する方針に転換した(経緯は git log 参照)。Kiro は特定 IDE に閉じた内製機能であり、複数ランタイムでの再利用性と「編集を結果解析 loop の一部として扱う」点は Astars 固有の強みとして残る、という判断による。
+## Capability Status
 
-完了条件:
-
-- [x] Python と Node 両方の binding が動作する(parse できて、何らかの値が両言語から取得できる)
-- [x] Rust core v0 scope が文書化されている
-- [x] `walk` / `find` / `node_at` / `span_of` / `source_of` / `point_at` が `astars-core` に実装され、Python / Node binding からも使える
-- [x] `SyntaxTree` が Python / Node 両方の binding から実際に使える(`node_info` / `dump` を含む)
-- [x] `replace` + `unchanged_in` が `astars-core` で動作し、Python / Node binding からも使える
-- [x] `parse_bytes` / `parse_file`(encoding 対応)/ `diagnostics` が `astars-core` に実装され、Python / Node binding からも使える
-
-## 強みの実現状況
-
-`STRATEGY.ja.md` の「Core Differentiator」が主張する強みに対して、v0 完了時点でどこまで実装・証明できているかを 4 つに分けて追跡する。
+`STRATEGY.ja.md`の戦略仮説とDesign Principlesに対して、現在のrepositoryでどこまで実装・実証できているかを4つに分けて追跡する。公開済みversionとの差は`CHANGELOG.md`と`NEXT_RELEASE`を参照する。
 
 ### 1. Source-faithful かつ編集可能な構造(parse → query → edit → re-analyze の loop)
 
-`EDIT_MODEL.ja.md` の操作リストに対応。
+現行のquery / operation capabilityを追跡する。意味論は`PROGRAM_MODEL` / `OPERATION_MODEL` / `PROVENANCE_MODEL`を参照。
 
-- [x] 操作1-6(parent/children、walk、find、node_at、span_of、source_of)
-- [x] 操作7(編集 primitive: `replace`)
-- [x] 操作8(編集前後の node 同一性比較: `unchanged_in`)
-- [x] 操作11(部分木の一括 export: `dump`)
-- [x] 操作12(node を値として FFI 境界を越えられる制約)
-- [x] 操作10(名前/kind ベースのアドレス指定: `child_by_field_name(id, field_name)`。tree-sitter の grammar が持つ field 名(`name`/`left`/`right`/`body` 等)をそのまま公開する primitive で、「名前 `hello` の関数」は `find(kind) + child_by_field_name(id, "name") + source_of` の組み合わせで引く。専用の `find_by_name` API は追加していない。Python/Node 両 binding で実機確認済み)
-- [ ] 操作9(派生系譜の追跡 — variant が元のどの node から来たかを追跡する台帳。シナリオB で必須)
-- [x] 操作13 v1(独立な2木の構造的 diff: `SyntaxTree::diff_with(new_source) -> EditResult`。`similar` クレートによる line-based diff を `InputEdit` に変換し、reverse 順で `tree.edit()` に適用してから1回だけ再 parse する。新しい型は作らず既存の `EditResult` を返し、新木側の問い合わせ用に `EditResult::unchanged(id)` を追加。node matching(GumTree 的な対応付け)は持たず byte-range overlap のみの v1 スコープ。Python/Node 両 binding で実機確認済み。詳細は `EDIT_MODEL.ja.md` の「構造的 diff(操作13)の設計」参照。v2 の GumTree 置き換えは未着手)
+- [x] structure query: parent/children、walk、find、node_at、span_of、source_of
+- [x] structure-addressed edit: `replace`
+- [x] changed-range query: `unchanged_in`
+- [x] 部分木の一括export: `dump`
+- [x] nodeを値としてFFI境界越しに扱える
+- [x] field navigation: `child_by_field_name(id, field_name)`。`name`を特別扱いせず、`find(kind) + child_by_field_name + source_of`を組み合わせる。Python/Node両bindingで実機確認済み
+- [ ] provenance tracking: variantが元のどのstate / operation / nodeから来たかを追跡する台帳
+- [x] independent source diffのStage 2近似: `SyntaxTree::diff_with(new_source) -> EditResult`。line-based changed rangeのみでnode matchingは行わない。意味上の制約は[ADR 0004](design/decisions/0004-independent-source-diff-is-inferred.ja.md)を参照
 
-土台(1-8, 10-13 v1)はできている。残るは 9・13 v2。
+Stage 2の土台はできている。主な未実装はfirst-class Operation、provenance tracking、structural correspondenceである。
 
 ### 2. 複数ランタイムでの再利用性
 
-- [x] Python/Node 両 binding が v0 API 全体で完全にパリティ(実機で動作確認済み)
-- [x] PyPI / npm への公開(`astars-py` 0.2.0 を PyPI へ、`@astars/native` 0.2.0 を npm へ publish 済み。詳細は `NEXT_RELEASE_PLAN.ja.md`)
+- [x] Python/Node両bindingが、共有するcore capabilityについてsemantic parityを持つ（runtime制約によるAPI形状の差は許容し、両runtimeで実機確認済み）
+- [x] PyPI / npmへの公開（`astars-py` 0.2.0をPyPIへ、`@astars/native` 0.2.0をnpmへpublish済み。公開履歴は`CHANGELOG.md`と`v0.2.0` tagを参照）
 
-### 3. LLM エージェント向け名前/kind ベース構造化編集
+### 3. LLMエージェント向けstructure-addressed editing
 
 - [x] `replace` + `unchanged_in` による「編集して暴走していないか確認する」ワークフローの土台
-- [x] 操作10(名前/kind アドレス指定)— 強み1と同じ項目。`child_by_field_name` で実装済み
+- [x] field-based addressing — 強み1と同じ項目。`child_by_field_name`で実装済み
 - [ ] selector DSL(`kind=... AND name=...` のような複合条件を1呼び出しで解決する仕組み。具体的な消費者が出るまで見送り)
 
 ### 4. ecosystem 中核としての軽量 engine
 
 - [ ] downstream package の実装例が1つもない(`astars-metrics` 等は `STRATEGY.ja.md` 上の構想のみ)
-- [ ] シナリオB(変異生成パイプライン)・C(embedding/LLM評価)・D(可視化)・E(構造的 diff、`astars-code-review` の土台)をエンドツーエンドで動かす実例がない
+- [ ] `USE_CASES.ja.md`のreference workflowをエンドツーエンドで動かす実例がない
 
 ### その他(強みと直接紐づかないが明示的に見送っているもの)
 
@@ -81,27 +91,14 @@ Rust core(`crates/astars-core`)+ Python/Node binding(`bindings/python`、`bindin
 
 いずれも「具体的な消費者が出てくるまで着手しない」方針のままである。
 
-## Decided: Release 0.1.1 は出さない
+## Frozen Python Prototype
 
-`0.1.1` は release tooling と documentation の maintenance release として計画していたが、Rust 移行に集中するため出さないことを決定した。`v0.1.0` を Python line の最終 release とする。
-
-## Completed on the Python Prototype (`feature/0.2-source-mapping`)
-
-Rust 移行後も設計の参照点として記録を残す。tie-breaker・1-based helper・`SourceText` の扱いなど、ここで固めた方針は v0 の Rust 実装(`node_at` の再帰探索による具体性優先、`Point` の 0-based 設計、`SyntaxTree` 内に閉じた source 保持)で一貫して踏襲済み。不連続な raw spans の covering span 化のみ、v0 が rule 正規化(`SyntaxGraph` 相当)を持たないため該当なし — 導入時に再検討する。
-
-- [x] source mapping の public behavior を文書化した
-- [x] invalid offset を `AstarsError` とする方針を固定した
-- [x] foreign `SourceUnit` の node を `AstarsError` とする方針を固定した
-- [x] EOF offset で `node_at()` が `None` を返すようにした
-- [x] Unicode source の UTF-8 byte offset test を追加した
-- [x] non-UTF-8 file input の mapping test を追加した
-- [x] zero-width diagnostic span の test を追加した
-- [x] `SourceText` internal model を導入した
-- [x] `SourceUnit` の validation / slicing / point conversion を `SourceText` に寄せた
+`prototype-python/`の完了事項は旧Python実装にだけ適用され、現行Rust実装の保証とはみなさない。invalid offsetやforeign nodeを制御されたerrorにする方針は設計上の参照点だが、Rust側ではまだStage 2 Evidence Gateの未完了事項である。過去の作業経緯は`prototype-python/README.md`と`git log`を参照する。
 
 ## Update Rule
 
 - 作業を開始した item は、その commit または pull request で checkbox を更新する
 - 新しい短期作業はまずこの文書に追加し、詳細設計が必要なら専用 plan に分ける
-- release、branch、実装言語の方針が変わったら `v0 Scope: 完了` も更新する
-- 「強みの実現状況」の項目に手をつけたら、該当する checkbox を更新する
+- release、branch、実装言語の方針が変わったら`Current Baseline`も更新する
+- capabilityに手をつけたら、該当するcheckboxを更新する
+- 完了した短期itemは恒久的な履歴として蓄積せず、必要な事実だけをdesign文書・CHANGELOG・Git履歴へ移す
